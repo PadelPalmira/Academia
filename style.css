@@ -19,6 +19,7 @@
     /* Colores Funcionales */
     --functional-red: #FF3B30;  
     --functional-green: #34C759;
+    --whatsapp-green: #25D366;
     --functional-yellow: #FFCC00;
     --functional-green-text: var(--palmira-black); 
     --functional-orange: #FF9500;
@@ -127,8 +128,9 @@ body {
 .dashboard-card { background: var(--palmira-light-gray-bg); padding: 20px; border-radius: var(--border-radius-medium); border: 1px solid var(--palmira-medium-gray); text-align: center; }
 .dashboard-card h3 { font-size: 1.1em; color: var(--palmira-pink); margin-bottom: 10px; justify-content: center; }
 .dashboard-card p { font-size: 2em; font-weight: 700; }
-.dashboard-list, .coach-list { list-style: none; padding: 0; }
-.dashboard-list li, .coach-list li { background: #f9f9f9; padding: 12px; border-radius: var(--border-radius-medium); margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; }
+.dashboard-list, .coach-list, .commission-detail-list { list-style: none; padding: 0; }
+.dashboard-list li, .coach-list li, .commission-detail-list li { background: #f9f9f9; padding: 12px; border-radius: var(--border-radius-medium); margin-bottom: 8px; }
+.coach-list li { display: flex; justify-content: space-between; align-items: center; }
 
 .player-list { list-style: none; padding: 0; }
 .player-list li {
@@ -162,8 +164,10 @@ body {
 .action-button:hover { transform: translateY(-2px); }
 .action-button.secondary-action { background: linear-gradient(145deg, var(--palmira-pink), var(--palmira-pink-darker)); color: var(--palmira-white); }
 .action-button.danger-action { background: var(--functional-red); color: var(--palmira-white); }
+.action-button.whatsapp-btn { background: var(--whatsapp-green); color: var(--palmira-white); }
 .action-button.full-width-button { width: 100%; margin-top: 18px; }
 .action-button-small { padding: 7px 10px; font-size: 0.85em; text-transform: none; gap: 5px; }
+.summary-actions { display: flex; flex-wrap: wrap; gap: 5px; }
 
 .payment-status-btn { padding: 6px 12px; color: white; text-align: center;}
 .payment-status-btn .payment-date { font-size: 0.8em; display: block; opacity: 0.9; }
@@ -190,10 +194,14 @@ body {
     display: flex; align-items: center; justify-content: space-between;
     padding: 15px; background: #fff; border: 1px solid var(--palmira-medium-gray);
     border-radius: var(--border-radius-medium); margin-bottom: 10px;
-    cursor: pointer; transition: all 0.2s ease;
+}
+#attendance-list-container .player-attendance-card .player-attendance-info {
+    cursor: pointer;
+    flex-grow: 1;
 }
 #attendance-list-container .player-attendance-card.presente { background-color: var(--palmira-cyan-light); border-left: 5px solid var(--functional-green); }
 #attendance-list-container .player-attendance-card.falta { opacity: 0.7; border-left: 5px solid var(--functional-red); }
+.attendance-coach { display: flex; align-items: center; gap: 10px; }
 
 /* Modal */
 .modal {
@@ -224,11 +232,12 @@ body {
 }
 hr.modal-divider { margin: 25px 0; border: 0; border-top: 1px solid var(--palmira-medium-gray); }
 .coach-list .coach-actions { display: flex; gap: 10px; }
+.commission-card { margin-bottom: 20px; }
 
 /* Admin Lock Styles */
 body.locked .admin-feature { display: none !important; }
-body.locked .payment-status-btn,
-body.locked .player-attendance-card { pointer-events: none; }
+body.locked .payment-status-btn { pointer-events: none; }
+body.locked .player-attendance-card .player-attendance-info { pointer-events: none; }
 
 /* Responsividad */
 @media (max-width: 768px) {
