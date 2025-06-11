@@ -27,7 +27,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const paymentFilter = document.getElementById('payment-filter');
     const serviceTypeFilter = document.getElementById('service-type-filter');
     const applySummaryFiltersBtn = document.getElementById('apply-summary-filters');
-
+    
     // --- ELEMENTOS DEL MODAL (JUGADOR) ---
     const mainServiceTypeSelect = document.getElementById('main-service-type');
     const academiaDetails = document.getElementById('step-academia-details');
@@ -39,7 +39,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const priceSummaryCard = document.getElementById('price-summary');
     const totalCostDisplay = document.getElementById('total-cost-display');
     const coachSelect = document.getElementById('coach-select');
-
+    
     // --- ELEMENTOS DEL MODAL (ENTRENADOR) ---
     const coachModal = document.getElementById('coach-modal');
     const closeCoachModalBtn = coachModal.querySelector('.close-button');
@@ -57,7 +57,9 @@ document.addEventListener('DOMContentLoaded', () => {
     let players = [];
     let coaches = [];
     let isAdmin = false;
-
+    let isDataLoading = false;
+    let lastDataState = '';
+    
     // --- CONSTANTES ---
     const PRICES = {
         academia: { ninos: 1800, adultos: 2200 },
@@ -70,17 +72,33 @@ document.addEventListener('DOMContentLoaded', () => {
     const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxiVyICkhHFOzwWhsltcAWj46lKeweGSSiJNfSBjpCN_3lzuYDH4p_oY_-oe6I0FRX-/exec";
 
     // --- FUNCIONES DE DATOS (CON GOOGLE SHEETS) ---
-    async function loadData() {
+    async function loadData(isInitialLoad = false) {
+        if (isDataLoading) {
+            console.log("Carga de datos ya en progreso.");
+            return;
+        }
+        isDataLoading = true;
+        if (isInitialLoad) {
+            document.body.classList.add('saving'); // Usar la clase 'saving' para mostrar un estado de carga inicial
+        }
+
         try {
-            document.body.classList.add('saving'); // Usar la clase 'saving' para mostrar un estado de carga
             const response = await fetch(SCRIPT_URL);
             if (!response.ok) {
                 throw new Error(`HTTP error! status: ${response.status}`);
             }
             const data = await response.json();
+            
+            const newDataState = JSON.stringify(data);
+            if (newDataState === lastDataState) {
+                console.log("Sin cambios en los datos. No se requiere actualización.");
+                return;
+            }
+            lastDataState = newDataState;
+            
             players = data.players || [];
             coaches = data.coaches || [];
-
+            
             // Forzar conversión de tipos de datos que vienen de Sheets
             players.forEach(p => {
                 p.id = parseInt(p.id, 10);
@@ -91,21 +109,28 @@ document.addEventListener('DOMContentLoaded', () => {
                 c.id = parseInt(c.id, 10);
                 c.commissionRate = parseFloat(c.commissionRate);
             });
-            console.log("Datos cargados desde Google Sheets.");
-            initApp(); // Iniciar la app solo después de cargar los datos
+            console.log("Datos actualizados desde Google Sheets.");
+            
+            if (isInitialLoad) {
+                initApp(); // Iniciar la app solo la primera vez
+            } else {
+                refreshAllViews(); // Refrescar vistas en cargas posteriores
+            }
+
         } catch (error) {
             console.error("Error al cargar datos desde Google Sheets:", error);
-            alert("No se pudieron cargar los datos. Revisa la URL del script y la configuración de permisos.");
+            if(isInitialLoad) alert("No se pudieron cargar los datos. Revisa la URL del script y la configuración de permisos.");
         } finally {
-            document.body.classList.remove('saving');
+            isDataLoading = false;
+            if (isInitialLoad) {
+                document.body.classList.remove('saving');
+            }
         }
     }
 
     async function saveData() {
         try {
             document.body.classList.add('saving');
-            // Usamos 'fetch' con 'no-cors' para evitar errores, pero no podremos leer la respuesta.
-            // La confirmación de que se guardó es implícita.
             await fetch(SCRIPT_URL, {
                 method: 'POST',
                 mode: 'no-cors', 
@@ -115,12 +140,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 body: JSON.stringify({ players, coaches }),
             });
             console.log("Datos enviados para guardar en Google Sheets.");
+            // Forzar una recarga inmediata de los datos para confirmar el estado
+            setTimeout(() => loadData(), 1000); 
         } catch (error) {
             console.error("Error al guardar datos en Google Sheets:", error);
             alert("Error al guardar los datos.");
         } finally {
-             // Damos un pequeño tiempo para que el script de Google se ejecute
-            setTimeout(() => document.body.classList.remove('saving'), 500);
+            setTimeout(() => document.body.classList.remove('saving'), 1500);
         }
     }
 
@@ -131,9 +157,7 @@ document.addEventListener('DOMContentLoaded', () => {
         adminLockIcon.classList.toggle('fa-lock', !isAdmin);
         adminLockIcon.classList.toggle('fa-unlock', isAdmin);
         adminLockBtn.classList.toggle('unlocked', isAdmin);
-        if (document.querySelector('#resumen-tab.active')) renderSummaryTable();
-        if (document.querySelector('#registro-tab.active')) renderPlayersList();
-        if (document.querySelector('#asistencia-tab.active')) renderAttendanceList();
+        refreshAllViews();
     };
 
     const handleAdminLock = () => {
@@ -148,7 +172,7 @@ document.addEventListener('DOMContentLoaded', () => {
             alert("PIN incorrecto.");
         }
     };
-
+    
     // --- LÓGICA DE ENTRENADORES ---
     const renderCoachesList = () => {
         coachListContainer.innerHTML = '';
@@ -176,7 +200,7 @@ document.addEventListener('DOMContentLoaded', () => {
         selectElement.innerHTML += `<option value="Ambos">Ambos</option>`;
         selectElement.value = currentCoachValue;
     };
-
+    
     const openCoachModal = (coach = null) => {
         coachForm.reset();
         coachForm.querySelector('#coach-id').value = '';
@@ -194,12 +218,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
         changeCoachForm.querySelector('#change-coach-player-id').value = playerId;
         changeCoachForm.querySelector('#change-coach-class-date').value = classDate;
-
+        
         populateCoachSelect(coachOverrideSelect);
-
+        
         const currentCoachId = attendanceRecord?.overrideCoachId || player.coachId;
         coachOverrideSelect.value = currentCoachId;
-
+        
         changeCoachModal.style.display = 'block';
     };
 
@@ -268,7 +292,7 @@ document.addEventListener('DOMContentLoaded', () => {
         sergioClassesStat.textContent = Math.round(classesCount['Sergio'] || 0);
         luisClassesStat.textContent = Math.round(classesCount['Luis'] || 0);
     };
-
+    
     const renderPlayersList = () => {
         playerListContainer.innerHTML = '';
         if (players.length === 0) {
@@ -292,7 +316,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const coach = coaches.find(c => c.id == player.coachId);
                 if (coach) coachName = coach.name;
             }
-
+            
             const phoneInfo = player.phone ? ` | 📞 ${player.phone}` : '';
 
             li.innerHTML = `
@@ -339,11 +363,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 const statusClass = attendanceRecord ? (attendanceRecord.status === 'presente' ? 'presente' : 'falta') : '';
                 const card = document.createElement('div');
                 card.className = `player-attendance-card`;
-
+                
                 const cardInfo = document.createElement('div');
                 cardInfo.className = `player-attendance-info ${statusClass}`;
                 cardInfo.dataset.playerId = player.id;
-
+                
                 const coachForThisClassId = attendanceRecord?.overrideCoachId || player.coachId;
                 let coachName = "No asignado";
                 if (coachForThisClassId === 'Ambos') {
@@ -352,7 +376,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     const coach = coaches.find(c => c.id == coachForThisClassId);
                     if (coach) coachName = coach.name;
                 }
-
+                
                 cardInfo.innerHTML = `
                     <strong>${player.name}</strong>
                     ${player.mainServiceType === 'academia' || player.individualType === 'paquete4' ? `<div class="faltas">Faltas: ${player.attendance.filter(a => a.status === 'falta').length}</div>` : ''}
@@ -373,7 +397,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
         body.classList.toggle('locked', !isAdmin);
     };
-
+    
     const renderSummaryTable = () => {
         summaryTableBody.innerHTML = '';
         let filteredPlayers = [...players];
@@ -398,7 +422,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if ((player.mainServiceType === 'academia' || player.individualType === 'paquete4') && remaining <= 2) {
                 row.classList.add('low-classes');
             }
-
+            
             let detailsText = `Clase Individual (Única)`;
             if (player.mainServiceType === 'academia' || player.individualType === 'paquete4') {
                  detailsText = `Clases Restantes: ${remaining}`;
@@ -406,7 +430,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const paymentDate = player.paid && player.paymentDate ? new Date(player.paymentDate).toLocaleDateString('es-ES') : '';
             const paymentText = player.paid ? `Pagado <span class="payment-date">(${paymentDate})</span>` : 'Pendiente';
-
+            
             let actionsHtml = '';
             if (player.mainServiceType === 'academia' || player.individualType === 'paquete4') {
                 if (remaining === 1 && player.phone) {
@@ -437,10 +461,10 @@ document.addEventListener('DOMContentLoaded', () => {
             commissionsResultsContainer.innerHTML = '<p style="color: var(--functional-red);">Por favor, selecciona un rango de fechas.</p>';
             return;
         }
-
+        
         let commissions = {};
         coaches.forEach(c => { commissions[c.id] = { name: c.name, total: 0, rate: c.commissionRate, classesTaught: [] }; });
-
+        
         players.forEach(player => {
             const paidInPeriod = player.paid && player.paymentDate >= startDate && player.paymentDate <= endDate;
             if (paidInPeriod) {
@@ -450,7 +474,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     classType: player.mainServiceType === 'academia' ? `Academia ${player.academyType}` : `Individual ${player.individualType}`,
                     price: price
                 };
-
+                
                 const coachIdForCommission = player.coachId; 
 
                 if (coachIdForCommission === 'Ambos' && coaches.length >= 2) {
@@ -458,7 +482,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     const coach2 = coaches[1];
                     const commission1 = price * (coach1.commissionRate / 100) / 2;
                     const commission2 = price * (coach2.commissionRate / 100) / 2;
-
+                    
                     if (commissions[coach1.id]) {
                         commissions[coach1.id].total += commission1;
                         commissions[coach1.id].classesTaught.push({ ...classDetail, commission: commission1 });
@@ -477,7 +501,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
         });
-
+        
         commissionsResultsContainer.innerHTML = '';
         Object.values(commissions).forEach(data => {
             let classesList = data.classesTaught.map(cls => 
@@ -556,10 +580,18 @@ document.addEventListener('DOMContentLoaded', () => {
         if(updated) {
             console.log('Faltas automáticas registradas.');
             saveData();
-            if(document.querySelector('#resumen-tab.active')) renderSummaryTable();
-            if(document.querySelector('#inicio-tab.active')) renderDashboard();
+            refreshAllViews();
         }
         localStorage.setItem('lastAbsenceCheck', todayStr);
+    };
+
+    const refreshAllViews = () => {
+        const activeTab = document.querySelector('.nav-button.active')?.dataset.tab;
+        if(activeTab === 'inicio') renderDashboard();
+        if(activeTab === 'registro') renderPlayersList();
+        if(activeTab === 'asistencia') renderAttendanceList();
+        if(activeTab === 'resumen') renderSummaryTable();
+        // No es necesario refrescar entrenadores ya que los cambios se hacen en el modal
     };
 
     // --- MANEJADORES DE EVENTOS ---
@@ -569,11 +601,7 @@ document.addEventListener('DOMContentLoaded', () => {
             tab.classList.add('active');
             const target = tab.getAttribute('data-tab');
             tabContents.forEach(content => content.classList.toggle('active', content.id === `${target}-tab`));
-
-            if (target === 'inicio') renderDashboard();
-            if (target === 'registro') renderPlayersList();
-            if (target === 'asistencia') renderAttendanceList();
-            if (target === 'resumen') renderSummaryTable();
+            refreshAllViews(); // Refresca la vista de la pestaña activa
         });
     });
 
@@ -600,7 +628,8 @@ document.addEventListener('DOMContentLoaded', () => {
             coachSelect.value = player.coachId;
             scheduleTimeSelect.value = player.schedule;
             document.querySelectorAll('input[name="class-day"]').forEach(cb => {
-                cb.checked = player.classDays.includes(cb.value);
+                const classDays = Array.isArray(player.classDays) ? player.classDays : [];
+                cb.checked = classDays.includes(cb.value);
             });
         }
         handleModalForm();
@@ -738,7 +767,7 @@ document.addEventListener('DOMContentLoaded', () => {
             renderSummaryTable();
         }
     });
-
+    
     summaryTableBody.addEventListener('click', (e) => {
         if (!isAdmin) return;
         const target = e.target.closest('button');
@@ -811,13 +840,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
     // --- INICIALIZACIÓN ---
-    const init = () => {
+    const initApp = () => {
+        // Esta función se llama después de que los datos iniciales se cargan
         if (coaches.length === 0) {
             coaches = [
                 { id: 1, name: 'Sergio', commissionRate: 33 },
                 { id: 2, name: 'Luis', commissionRate: 33 }
             ];
-            saveData();
         }
 
         for (let i = 8; i <= 23; i++) { // Rango de horas extendido
@@ -829,10 +858,14 @@ document.addEventListener('DOMContentLoaded', () => {
         renderCoachesList();
         document.querySelector('.nav-button[data-tab="inicio"]').click();
 
-        setInterval(autoMarkAbsences, 3600000);
+        // Inicia el polling para actualizaciones automáticas
+        setInterval(() => loadData(false), 20000); // Actualiza cada 20 segundos
+
+        // Comprobación de ausencias al inicio y luego periódicamente
         autoMarkAbsences();
+        setInterval(autoMarkAbsences, 3600000); // Cada hora
     };
 
-    // Usando localStorage
-    init();
+    // Iniciar la carga de datos al abrir la app
+    loadData(true);
 });
