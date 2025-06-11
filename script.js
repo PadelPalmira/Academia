@@ -54,8 +54,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const coachOverrideSelect = document.getElementById('coach-override-select');
 
     // --- ESTADO DE LA APLICACIÓN ---
-    let players = [];
-    let coaches = [];
+    let players = JSON.parse(localStorage.getItem('padelPlayers_v5')) || [];
+    let coaches = JSON.parse(localStorage.getItem('padelCoaches_v5')) || [];
     let isAdmin = false;
     
     // --- CONSTANTES ---
@@ -67,62 +67,12 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
     const ADMIN_PIN = "5858";
-    const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxiVyICkhHFOzwWhsltcAWj46lKeweGSSiJNfSBjpCN_3lzuYDH4p_oY_-oe6I0FRX-/exec";
 
-    // --- FUNCIONES DE DATOS (CON GOOGLE SHEETS) ---
-    async function loadData() {
-        try {
-            document.body.classList.add('saving'); // Usar la clase 'saving' para mostrar un estado de carga
-            const response = await fetch(SCRIPT_URL);
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
-            const data = await response.json();
-            players = data.players || [];
-            coaches = data.coaches || [];
-            
-            // Forzar conversión de tipos de datos que vienen de Sheets
-            players.forEach(p => {
-                p.id = parseInt(p.id, 10);
-                p.paid = String(p.paid).toLowerCase() === 'true';
-                p.manualClassAdjustment = parseInt(p.manualClassAdjustment, 10) || 0;
-            });
-            coaches.forEach(c => {
-                c.id = parseInt(c.id, 10);
-                c.commissionRate = parseFloat(c.commissionRate);
-            });
-            console.log("Datos cargados desde Google Sheets.");
-            initApp(); // Iniciar la app solo después de cargar los datos
-        } catch (error) {
-            console.error("Error al cargar datos desde Google Sheets:", error);
-            alert("No se pudieron cargar los datos. Revisa la URL del script y la configuración de permisos.");
-        } finally {
-            document.body.classList.remove('saving');
-        }
-    }
-
-    async function saveData() {
-        try {
-            document.body.classList.add('saving');
-            // Usamos 'fetch' con 'no-cors' para evitar errores, pero no podremos leer la respuesta.
-            // La confirmación de que se guardó es implícita.
-            await fetch(SCRIPT_URL, {
-                method: 'POST',
-                mode: 'no-cors', 
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ players, coaches }),
-            });
-            console.log("Datos enviados para guardar en Google Sheets.");
-        } catch (error) {
-            console.error("Error al guardar datos en Google Sheets:", error);
-            alert("Error al guardar los datos.");
-        } finally {
-             // Damos un pequeño tiempo para que el script de Google se ejecute
-            setTimeout(() => document.body.classList.remove('saving'), 500);
-        }
-    }
+    // --- FUNCIONES DE DATOS ---
+    const saveData = () => {
+        localStorage.setItem('padelPlayers_v5', JSON.stringify(players));
+        localStorage.setItem('padelCoaches_v5', JSON.stringify(coaches));
+    };
 
     // --- LÓGICA DE ADMIN ---
     const toggleAdminMode = () => {
@@ -331,7 +281,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
         Object.keys(groupedBySchedule).sort().forEach(schedule => {
             const scheduleContainer = document.createElement('div');
-            scheduleContainer.innerHTML = `<h3>Horario: ${schedule} (${selectedDate.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric' })})</h3>`;
+            const formattedDate = selectedDate.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' });
+            scheduleContainer.innerHTML = `<h3>Horario: ${schedule} (${formattedDate})</h3>`;
 
             groupedBySchedule[schedule].forEach(player => {
                 const attendanceRecord = player.attendance.find(a => a.date === selectedDateStr);
@@ -810,16 +761,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
     // --- INICIALIZACIÓN ---
-    const initApp = () => {
+    const init = () => {
         if (coaches.length === 0) {
             coaches = [
                 { id: 1, name: 'Sergio', commissionRate: 33 },
                 { id: 2, name: 'Luis', commissionRate: 33 }
             ];
-            // No guardamos aquí para no sobreescribir la hoja si está vacía por error.
+            saveData();
         }
 
-        for (let i = 8; i <= 18; i++) {
+        for (let i = 8; i <= 23; i++) { // Rango de horas extendido
             scheduleTimeSelect.add(new Option(`${String(i).padStart(2, '0')}:00`, `${String(i).padStart(2, '0')}:00`));
         }
         let todayDay = new Date().getDay();
@@ -832,5 +783,5 @@ document.addEventListener('DOMContentLoaded', () => {
         autoMarkAbsences();
     };
 
-    loadData();
+    init();
 });
