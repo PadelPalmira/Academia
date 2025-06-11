@@ -167,7 +167,7 @@ body {
 .action-button.whatsapp-btn { background: var(--whatsapp-green); color: var(--palmira-white); }
 .action-button.full-width-button { width: 100%; margin-top: 18px; }
 .action-button-small { padding: 7px 10px; font-size: 0.85em; text-transform: none; gap: 5px; }
-.summary-actions { display: flex; flex-wrap: wrap; gap: 5px; }
+.summary-actions { display: flex; flex-wrap: wrap; gap: 5px; justify-content: flex-end; align-items: center; }
 
 .payment-status-btn { padding: 6px 12px; color: white; text-align: center;}
 .payment-status-btn .payment-date { font-size: 0.8em; display: block; opacity: 0.9; }
@@ -192,16 +192,20 @@ body {
 /* Asistencia */
 #attendance-list-container .player-attendance-card {
     display: flex; align-items: center; justify-content: space-between;
-    padding: 15px; background: #fff; border: 1px solid var(--palmira-medium-gray);
+    padding: 0; background: var(--palmira-white); border: 1px solid var(--palmira-medium-gray);
     border-radius: var(--border-radius-medium); margin-bottom: 10px;
+    overflow: hidden; /* Para que el borde se aplique bien */
+    transition: background-color 0.3s ease;
 }
-#attendance-list-container .player-attendance-card .player-attendance-info {
+#attendance-list-container .player-attendance-info {
     cursor: pointer;
     flex-grow: 1;
+    padding: 15px;
+    transition: background-color 0.3s ease, color 0.3s ease;
 }
-#attendance-list-container .player-attendance-card.presente { background-color: var(--palmira-cyan-light); border-left: 5px solid var(--functional-green); }
-#attendance-list-container .player-attendance-card.falta { opacity: 0.7; border-left: 5px solid var(--functional-red); }
-.attendance-coach { display: flex; align-items: center; gap: 10px; }
+#attendance-list-container .player-attendance-info.presente { background-color: var(--palmira-cyan-light); }
+#attendance-list-container .player-attendance-info.falta { opacity: 0.7; background-color: #ffebee; }
+.attendance-coach { display: flex; align-items: center; gap: 10px; padding-right: 15px; }
 
 /* Modal */
 .modal {
@@ -236,8 +240,8 @@ hr.modal-divider { margin: 25px 0; border: 0; border-top: 1px solid var(--palmir
 
 /* Admin Lock Styles */
 body.locked .admin-feature { display: none !important; }
-body.locked .payment-status-btn { pointer-events: none; }
-body.locked .player-attendance-card .player-attendance-info { pointer-events: none; }
+body.locked .payment-status-btn,
+body.locked .player-attendance-info { pointer-events: none; }
 
 /* Responsividad */
 @media (max-width: 768px) {
