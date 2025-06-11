@@ -129,7 +129,7 @@
                                 <th>Jugador</th>
                                 <th>Detalle</th>
                                 <th>Estado del Pago</th>
-                                <th class="admin-feature" style="width: 220px;">Acciones</th>
+                                <th class="admin-feature" style="width: 240px;">Acciones</th>
                             </tr>
                         </thead>
                         <tbody></tbody>
@@ -167,6 +167,10 @@
                 <div class="form-step" id="step-1">
                     <label for="player-name">Nombre del Jugador:</label>
                     <input type="text" id="player-name" class="styled-input" required>
+                    
+                    <label for="player-phone">Teléfono (WhatsApp, 10 dígitos):</label>
+                    <input type="tel" id="player-phone" class="styled-input" pattern="[0-9]{10}" placeholder="Ej: 5512345678">
+
                     <label for="main-service-type">Tipo de Servicio:</label>
                     <select id="main-service-type" class="styled-select" required>
                         <option value="" disabled selected>Selecciona una opción</option>
