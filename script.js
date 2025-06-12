@@ -390,6 +390,9 @@ document.addEventListener('DOMContentLoaded', () => {
         body.classList.toggle('locked', !isAdmin);
     };
 
+    /**
+     * **MODIFICADO** Re-integra el botón de cambio de entrenador y asegura que todos los botones de acción estén agrupados.
+     */
     const renderAttendanceList = () => {
         const selectedDay = daySelector.value;
         const selectedDate = getDateForDayOfWeek(selectedDay);
@@ -428,17 +431,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 const card = document.createElement('div');
                 card.className = 'player-attendance-card';
 
+                // Estructura HTML actualizada para agrupar todos los botones
                 card.innerHTML = `
                     <div class="player-attendance-info">
                         <strong>${player.name}</strong>
-                        <div class="attendance-coach">
-                            <span>${coachName}</span>
-                            <button class="action-button-small edit-class-coach-btn admin-feature" data-player-id="${player.id}" data-class-date="${selectedDateStr}">${ICONS.change}</button>
-                        </div>
+                        <span>Entrenador: ${coachName}</span>
                     </div>
                     <div class="attendance-actions">
                         <button class="action-button-small present-btn ${attendanceRecord?.status === 'presente' ? 'active' : ''}" data-player-id="${player.id}" data-status="presente">Presente</button>
                         <button class="action-button-small absent-btn ${attendanceRecord?.status === 'falta' ? 'active' : ''}" data-player-id="${player.id}" data-status="falta">Falta</button>
+                        <button class="action-button-small edit-class-coach-btn admin-feature" data-player-id="${player.id}" data-class-date="${selectedDateStr}" title="Cambiar entrenador">${ICONS.change}</button>
                     </div>
                 `;
                 scheduleContainer.appendChild(card);
@@ -856,14 +858,17 @@ document.addEventListener('DOMContentLoaded', () => {
         const player = players.find(p => p.id == playerId);
         let attendanceRecord = player.attendance.find(a => a.date === classDate);
         if (!attendanceRecord) {
+            // Si no hay registro, se crea uno nuevo marcando presente y asignando el nuevo entrenador
             player.attendance.push({ date: classDate, status: 'presente', overrideCoachId: newCoachId });
         } else {
+            // Si ya hay registro, solo se actualiza el entrenador
             attendanceRecord.overrideCoachId = newCoachId;
         }
         saveData();
         renderAttendanceList();
         changeCoachModal.style.display = 'none';
     });
+
 
     // --- INICIALIZACIÓN ---
     const initApp = () => {
