@@ -389,10 +389,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
         body.classList.toggle('locked', !isAdmin);
     };
-
-    /**
-     * **MODIFICADO** Re-integra el botón de cambio de entrenador y asegura que todos los botones de acción estén agrupados.
-     */
+    
     const renderAttendanceList = () => {
         const selectedDay = daySelector.value;
         const selectedDate = getDateForDayOfWeek(selectedDay);
@@ -431,7 +428,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 const card = document.createElement('div');
                 card.className = 'player-attendance-card';
 
-                // Estructura HTML actualizada para agrupar todos los botones
                 card.innerHTML = `
                     <div class="player-attendance-info">
                         <strong>${player.name}</strong>
@@ -480,7 +476,8 @@ document.addEventListener('DOMContentLoaded', () => {
                  detailsText = `Clases Restantes: ${remaining}`;
             }
 
-            const paymentDate = player.paid && player.paymentDate ? new Date(player.paymentDate + "T12:00:00Z").toLocaleDateString('es-ES') : '';
+            // **CORREGIDO** Asegura que la fecha se interprete correctamente
+            const paymentDate = player.paid && player.paymentDate ? new Date(String(player.paymentDate).slice(0,10) + "T12:00:00Z").toLocaleDateString('es-ES') : '';
             const paymentText = player.paid ? `Pagado <span class="payment-date">(${paymentDate})</span>` : 'Pendiente';
 
             let actionsHtml = '';
