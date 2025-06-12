@@ -191,7 +191,7 @@ body {
 .filters .styled-select, .filters .styled-input, .filters .action-button { margin-bottom: 0; flex-grow: 1; min-width: 150px; }
 .filters .action-button { flex-grow: 0; }
 
-/* --- SECCIÓN DE ASISTENCIA (VERIFICADA) --- */
+/* --- SECCIÓN DE ASISTENCIA (MODIFICADA) --- */
 .player-attendance-card {
     display: flex;
     align-items: center;
@@ -208,25 +208,17 @@ body {
 }
 .player-attendance-info strong {
     font-size: 1.1em;
+    display: block;
 }
-.attendance-coach {
-    display: flex;
-    align-items: center;
-    gap: 5px;
+.player-attendance-info span {
     font-size: 0.9em;
     color: #555;
 }
-.attendance-coach .action-button-small {
-    background: transparent;
-    color: var(--palmira-dark-text);
-    padding: 5px;
-}
-.attendance-coach .action-button-small:hover {
-    background: rgba(0,0,0,0.1);
-}
+
 .attendance-actions {
     display: flex;
     gap: 8px;
+    align-items: center;
 }
 .attendance-actions .action-button-small {
     background-color: var(--palmira-light-gray-bg);
@@ -242,6 +234,14 @@ body {
     background-color: var(--functional-red);
     color: white;
     border-color: #c9302c;
+}
+.attendance-actions .edit-class-coach-btn {
+    background: transparent;
+    padding: 5px;
+    border: none;
+}
+.attendance-actions .edit-class-coach-btn:hover {
+    background: rgba(0,0,0,0.1);
 }
 
 /* Modal */
