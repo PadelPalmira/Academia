@@ -167,15 +167,8 @@ body {
 .action-button.whatsapp-btn { background: var(--whatsapp-green); color: var(--palmira-white); }
 .action-button.full-width-button { width: 100%; margin-top: 18px; }
 .action-button-small { padding: 7px 10px; font-size: 0.85em; text-transform: none; gap: 5px; }
-/* **NUEVO:** Estilos para los iconos SVG dentro de los botones */
-.action-button-small .icon-svg {
-    width: 1.2em;
-    height: 1.2em;
-}
-.action-button .icon-svg { /* Para botones más grandes */
-    width: 1.4em;
-    height: 1.4em;
-}
+.icon-svg { width: 1.2em; height: 1.2em; }
+.action-button .icon-svg { width: 1.4em; height: 1.4em; }
 .summary-actions { display: flex; flex-wrap: wrap; gap: 5px; justify-content: flex-end; align-items: center; }
 
 .payment-status-btn { padding: 6px 12px; color: white; text-align: center;}
@@ -199,32 +192,34 @@ body {
 .filters .action-button { flex-grow: 0; }
 
 /* Asistencia */
-#attendance-list-container .player-attendance-card {
+.player-attendance-card {
     display: flex; align-items: center; justify-content: space-between;
-    padding: 0; background: var(--palmira-white); border: 1px solid var(--palmira-medium-gray);
+    padding: 12px; background: var(--palmira-white); border: 1px solid var(--palmira-medium-gray);
     border-radius: var(--border-radius-medium); margin-bottom: 10px;
-    overflow: hidden; 
-    transition: background-color 0.3s ease;
+    gap: 15px;
 }
-#attendance-list-container .player-attendance-info {
-    cursor: pointer;
-    flex-grow: 1;
-    padding: 15px;
-    transition: background-color 0.3s ease, color 0.3s ease;
-}
-#attendance-list-container .player-attendance-info.presente { background-color: var(--palmira-cyan-light); }
-#attendance-list-container .player-attendance-info.falta { opacity: 0.7; background-color: #ffebee; }
-.attendance-coach { display: flex; align-items: center; gap: 10px; padding-right: 15px; }
-/* **NUEVO:** Estilos para el botón de cambio de entrenador en asistencia */
-.attendance-coach .action-button-small {
-    background: transparent;
+.player-attendance-info { flex-grow: 1; }
+.player-attendance-info strong { font-size: 1.1em; }
+.attendance-coach { display: flex; align-items: center; gap: 5px; font-size: 0.9em; color: #555; }
+.attendance-coach .action-button-small { background: transparent; color: var(--palmira-dark-text); padding: 5px; }
+.attendance-coach .action-button-small:hover { background: rgba(0,0,0,0.1); }
+/* **NUEVO** Estilos para botones de asistencia */
+.attendance-actions { display: flex; gap: 8px; }
+.attendance-actions .action-button-small {
+    background-color: var(--palmira-light-gray-bg);
     color: var(--palmira-dark-text);
-    padding: 5px;
+    border: 1px solid var(--palmira-medium-gray);
 }
-.attendance-coach .action-button-small:hover {
-    background: rgba(0,0,0,0.1);
+.attendance-actions .action-button-small.active.present-btn {
+    background-color: var(--functional-green);
+    color: white;
+    border-color: #299c49;
 }
-
+.attendance-actions .action-button-small.active.absent-btn {
+    background-color: var(--functional-red);
+    color: white;
+    border-color: #c9302c;
+}
 
 /* Modal */
 .modal {
@@ -260,7 +255,8 @@ hr.modal-divider { margin: 25px 0; border: 0; border-top: 1px solid var(--palmir
 /* Admin Lock Styles */
 body.locked .admin-feature { display: none !important; }
 body.locked .payment-status-btn,
-body.locked .player-attendance-info { pointer-events: none; }
+body.locked .attendance-actions button,
+body.locked .edit-class-coach-btn { pointer-events: none; opacity: 0.6; }
 
 /* Responsividad */
 @media (max-width: 768px) {
@@ -278,4 +274,6 @@ body.locked .player-attendance-info { pointer-events: none; }
         content: attr(data-label); position: absolute; left: 15px; width: calc(50% - 30px);
         text-align: left; font-weight: 700; color: var(--palmira-pink);
     }
+    .player-attendance-card { flex-direction: column; align-items: stretch; }
 }
+
