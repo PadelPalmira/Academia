@@ -85,27 +85,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- FUNCIONES DE DATOS (CON GOOGLE SHEETS) ---
     async function loadData(isInitialLoad = false) {
-        if (isDataLoading) {
-            console.log("Carga de datos ya en progreso.");
-            return;
-        }
+        if (isDataLoading) return;
         isDataLoading = true;
-        if (isInitialLoad) {
-            document.body.classList.add('saving'); 
-        }
+        if (isInitialLoad) document.body.classList.add('saving');
 
         try {
             const response = await fetch(SCRIPT_URL);
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
+            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
             const data = await response.json();
 
             const newDataState = JSON.stringify(data);
-            if (newDataState === lastDataState) {
-                console.log("Sin cambios en los datos. No se requiere actualización.");
-                return;
-            }
+            if (newDataState === lastDataState && !isInitialLoad) return;
             lastDataState = newDataState;
 
             players = data.players || [];
@@ -115,21 +105,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 p.id = parseInt(p.id, 10);
                 p.paid = String(p.paid).toLowerCase() === 'true';
                 p.manualClassAdjustment = parseInt(p.manualClassAdjustment, 10) || 0;
+                p.attendance = p.attendance || [];
+                p.historicalAttendance = p.historicalAttendance || [];
 
-                // **SOLUCIÓN DEFINITIVA PARA HORARIOS**
-                // 1. Si el dato viene "blindado" con comilla, se la quitamos.
                 if (p.schedule && typeof p.schedule === 'string' && p.schedule.startsWith("'")) {
                     p.schedule = p.schedule.substring(1);
-                } 
-                // 2. Si es un dato antiguo y corrupto (formato fecha), lo reparamos.
-                else if (p.schedule && typeof p.schedule === 'string' && p.schedule.includes('T')) {
+                } else if (p.schedule && typeof p.schedule === 'string' && p.schedule.includes('T')) {
                     try {
                         const date = new Date(p.schedule);
                         const hours = String(date.getUTCHours()).padStart(2, '0');
                         p.schedule = `${hours}:00`;
-                    } catch (e) {
-                        console.error(`Error al reparar el horario para el jugador ${p.name}: ${p.schedule}`, e);
-                    }
+                    } catch (e) { console.error(`Error al reparar horario para ${p.name}: ${p.schedule}`, e); }
                 }
             });
 
@@ -137,22 +123,18 @@ document.addEventListener('DOMContentLoaded', () => {
                 c.id = parseInt(c.id, 10);
                 c.commissionRate = parseFloat(c.commissionRate);
             });
-            console.log("Datos actualizados desde Google Sheets.");
 
             if (isInitialLoad) {
                 initApp();
             } else {
                 refreshAllViews();
             }
-
         } catch (error) {
-            console.error("Error al cargar datos desde Google Sheets:", error);
-            if(isInitialLoad) alert("No se pudieron cargar los datos. Revisa la URL del script y la configuración de permisos.");
+            console.error("Error al cargar datos:", error);
+            if (isInitialLoad) alert("No se pudieron cargar los datos.");
         } finally {
             isDataLoading = false;
-            if (isInitialLoad) {
-                document.body.classList.remove('saving');
-            }
+            if (isInitialLoad) document.body.classList.remove('saving');
         }
     }
 
@@ -161,16 +143,13 @@ document.addEventListener('DOMContentLoaded', () => {
             document.body.classList.add('saving');
             await fetch(SCRIPT_URL, {
                 method: 'POST',
-                mode: 'no-cors', 
-                headers: {
-                    'Content-Type': 'application/json',
-                },
+                mode: 'no-cors',
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ players, coaches }),
             });
-            console.log("Datos enviados para guardar en Google Sheets.");
-            setTimeout(() => loadData(), 1000); 
+            setTimeout(() => loadData(), 1000);
         } catch (error) {
-            console.error("Error al guardar datos en Google Sheets:", error);
+            console.error("Error al guardar datos:", error);
             alert("Error al guardar los datos.");
         } finally {
             setTimeout(() => document.body.classList.remove('saving'), 1500);
@@ -193,31 +172,21 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
         const pin = prompt("Introduce el PIN de administrador:");
-        if (pin === ADMIN_PIN) {
-            toggleAdminMode();
-        } else if (pin) {
-            alert("PIN incorrecto.");
-        }
+        if (pin === ADMIN_PIN) toggleAdminMode();
+        else if (pin) alert("PIN incorrecto.");
     };
 
-    // --- LÓGICA DE ENTRENADORES ---
+    // --- LÓGICA DE ENTRENADORES (sin cambios) ---
     const renderCoachesList = () => {
         coachListContainer.innerHTML = '';
         coaches.forEach(coach => {
             const li = document.createElement('li');
-            li.innerHTML = `
-                <span>${coach.name} (${coach.commissionRate}%)</span>
-                <div class="coach-actions">
-                    <button class="action-button-small secondary-action edit-coach-btn" data-id="${coach.id}">${ICONS.edit}</button>
-                    <button class="action-button-small danger-action delete-coach-btn" data-id="${coach.id}">${ICONS.delete}</button>
-                </div>
-            `;
+            li.innerHTML = `<span>${coach.name} (${coach.commissionRate}%)</span><div class="coach-actions"><button class="action-button-small secondary-action edit-coach-btn" data-id="${coach.id}">${ICONS.edit}</button><button class="action-button-small danger-action delete-coach-btn" data-id="${coach.id}">${ICONS.delete}</button></div>`;
             coachListContainer.appendChild(li);
         });
         populateCoachSelect();
         populateCoachSelect(coachOverrideSelect);
     };
-
     const populateCoachSelect = (selectElement = coachSelect) => {
         const currentCoachValue = selectElement.value;
         selectElement.innerHTML = '<option value="" disabled>Selecciona...</option>';
@@ -227,7 +196,6 @@ document.addEventListener('DOMContentLoaded', () => {
         selectElement.innerHTML += `<option value="Ambos">Ambos</option>`;
         selectElement.value = currentCoachValue;
     };
-
     const openCoachModal = (coach = null) => {
         coachForm.reset();
         coachForm.querySelector('#coach-id').value = '';
@@ -238,67 +206,53 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         coachModal.style.display = 'block';
     };
-
     const openChangeCoachModal = (playerId, classDate) => {
         const player = players.find(p => p.id == playerId);
         const attendanceRecord = player.attendance.find(a => a.date === classDate);
-
         changeCoachForm.querySelector('#change-coach-player-id').value = playerId;
         changeCoachForm.querySelector('#change-coach-class-date').value = classDate;
-
         populateCoachSelect(coachOverrideSelect);
-
-        const currentCoachId = attendanceRecord?.overrideCoachId || player.coachId;
-        coachOverrideSelect.value = currentCoachId;
-
+        coachOverrideSelect.value = attendanceRecord?.overrideCoachId || player.coachId;
         changeCoachModal.style.display = 'block';
     };
 
     // --- FUNCIONES DE FECHA ---
+    const getWeekNumber = (d) => {
+        d = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+        d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
+        const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+        const weekNo = Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
+        return [d.getUTCFullYear(), weekNo];
+    };
     const getDateForDayOfWeek = (dayOfWeek) => {
         const today = new Date();
         const currentDay = today.getDay();
-        const targetDay = parseInt(dayOfWeek, 10);
         const dayOffset = currentDay === 0 ? 7 : currentDay;
+        const targetDay = parseInt(dayOfWeek, 10);
         const targetOffset = targetDay === 0 ? 7 : targetDay;
         const dayDifference = targetOffset - dayOffset;
         const targetDate = new Date(today);
         targetDate.setDate(today.getDate() + dayDifference);
         return targetDate;
     };
-
     const populateFortnightSelector = () => {
         if (!fortnightSelector) return;
         fortnightSelector.innerHTML = '';
         const today = new Date();
         const monthNames = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
-
-        try {
-            for (let i = 0; i < 6; i++) { 
-                const date = new Date(today.getFullYear(), today.getMonth() - i, 1);
-                const month = date.getMonth();
-                const year = date.getFullYear();
-                const lastDayOfMonth = new Date(year, month + 1, 0).getDate();
-
-                const endSecond = new Date(year, month, lastDayOfMonth).toISOString().slice(0, 10);
-                const startSecond = new Date(year, month, 16).toISOString().slice(0, 10);
-                const optionSecond = document.createElement('option');
-                optionSecond.value = `${startSecond}_${endSecond}`;
-                optionSecond.textContent = `16 al ${lastDayOfMonth} de ${monthNames[month]}, ${year}`;
-                fortnightSelector.appendChild(optionSecond);
-
-                const endFirst = new Date(year, month, 15).toISOString().slice(0, 10);
-                const startFirst = new Date(year, month, 1).toISOString().slice(0, 10);
-                const optionFirst = document.createElement('option');
-                optionFirst.value = `${startFirst}_${endFirst}`;
-                optionFirst.textContent = `1 al 15 de ${monthNames[month]}, ${year}`;
-                fortnightSelector.appendChild(optionFirst);
-            }
-        } catch (error) {
-            console.error("Error populando el selector de quincenas:", error);
+        for (let i = 0; i < 6; i++) {
+            const date = new Date(today.getFullYear(), today.getMonth() - i, 1);
+            const month = date.getMonth();
+            const year = date.getFullYear();
+            const lastDayOfMonth = new Date(year, month + 1, 0).getDate();
+            const endSecond = new Date(year, month, lastDayOfMonth).toISOString().slice(0, 10);
+            const startSecond = new Date(year, month, 16).toISOString().slice(0, 10);
+            fortnightSelector.innerHTML += `<option value="${startSecond}_${endSecond}">16 al ${lastDayOfMonth} de ${monthNames[month]}, ${year}</option>`;
+            const endFirst = new Date(year, month, 15).toISOString().slice(0, 10);
+            const startFirst = new Date(year, month, 1).toISOString().slice(0, 10);
+            fortnightSelector.innerHTML += `<option value="${startFirst}_${endFirst}">1 al 15 de ${monthNames[month]}, ${year}</option>`;
         }
     };
-
     const formatSchedule = (scheduleString) => {
         if (typeof scheduleString === 'string' && /^\d{2}:\d{2}$/.test(scheduleString)) {
             const [startHourStr] = scheduleString.split(':');
@@ -308,18 +262,61 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         return scheduleString;
     };
+    
+    // --- LÓGICA DE ASISTENCIA MEJORADA ---
 
+    /**
+     * **NUEVO** Archiva las asistencias de semanas pasadas al historial.
+     * Esto mantiene la lista de asistencia actual limpia, mostrando solo la semana en curso.
+     */
+    const archiveOldAttendance = () => {
+        const [currentYear, currentWeek] = getWeekNumber(new Date());
+        let needsSave = false;
+        players.forEach(player => {
+            const recordsToArchive = player.attendance.filter(att => {
+                const recordDate = new Date(att.date + "T12:00:00Z"); // Use noon to avoid timezone issues
+                const [recordYear, recordWeek] = getWeekNumber(recordDate);
+                return recordYear !== currentYear || recordWeek !== currentWeek;
+            });
 
-    // --- FUNCIONES DE RENDERIZADO Y LÓGICA ---
-    const getRemainingClasses = (player) => {
-        if (player.mainServiceType !== 'academia' && player.individualType !== 'paquete4') return Infinity;
-        const packageSize = player.individualType === 'paquete4' ? 4 : 8;
-        const absences = player.attendance.filter(a => a.status === 'falta').length;
-        const effectiveAbsences = player.mainServiceType === 'academia' ? Math.min(absences, 2) : absences;
-        const attendedClasses = player.attendance.filter(a => a.status === 'presente').length + (absences - effectiveAbsences);
-        return packageSize + (player.manualClassAdjustment || 0) - attendedClasses;
+            if (recordsToArchive.length > 0) {
+                // Mover a historial, evitando duplicados
+                recordsToArchive.forEach(recordToArchive => {
+                    if (!player.historicalAttendance.some(h => h.date === recordToArchive.date)) {
+                        player.historicalAttendance.push(recordToArchive);
+                    }
+                });
+                // Mantener solo los de la semana actual
+                player.attendance = player.attendance.filter(att => !recordsToArchive.find(r => r.date === att.date));
+                needsSave = true;
+            }
+        });
+        if (needsSave) {
+            console.log("Asistencias de semanas pasadas archivadas.");
+            saveData();
+        }
     };
 
+    /**
+     * **MODIFICADO** Calcula clases restantes usando el historial completo.
+     */
+    const getRemainingClasses = (player) => {
+        if (player.mainServiceType !== 'academia' && player.individualType !== 'paquete4') return Infinity;
+        
+        const allAttendance = [...player.attendance, ...player.historicalAttendance];
+        const packageSize = player.individualType === 'paquete4' ? 4 : 8;
+        
+        const absences = allAttendance.filter(a => a.status === 'falta').length;
+        const effectiveAbsences = player.mainServiceType === 'academia' ? Math.min(absences, 2) : absences;
+        const attendedClasses = allAttendance.filter(a => a.status === 'presente').length;
+        
+        // El total de clases usadas es la suma de asistencias + faltas que sí cuentan.
+        const classesUsed = attendedClasses + effectiveAbsences;
+        
+        return packageSize + (player.manualClassAdjustment || 0) - classesUsed;
+    };
+
+    // --- FUNCIONES DE RENDERIZADO Y LÓGICA PRINCIPAL ---
     const renderDashboard = () => {
         totalPlayersStat.textContent = players.length;
         playersToRenewList.innerHTML = '';
@@ -339,11 +336,11 @@ document.addEventListener('DOMContentLoaded', () => {
         const endQuincena = new Date(today.getFullYear(), today.getMonth(), today.getDate() <= 15 ? 15 : new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate());
 
         let classesCount = {};
-        coaches.forEach(c => { classesCount[c.name] = 0 });
-
+        coaches.forEach(c => { classesCount[c.name] = 0; });
+        
         players.forEach(player => {
-            player.attendance.forEach(att => {
-                const attDate = new Date(att.date + 'T00:00:00');
+            [...player.attendance, ...player.historicalAttendance].forEach(att => {
+                const attDate = new Date(att.date + 'T12:00:00Z');
                 if (attDate >= startQuincena && attDate <= endQuincena) {
                     const coachId = att.overrideCoachId || player.coachId;
                     if (coachId === 'Ambos' && coaches.length >= 2) {
@@ -369,7 +366,7 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        players.forEach(player => {
+        players.sort((a, b) => a.name.localeCompare(b.name)).forEach(player => {
             const li = document.createElement('li');
             let details = '';
             if (player.mainServiceType === 'academia') {
@@ -404,12 +401,15 @@ document.addEventListener('DOMContentLoaded', () => {
         body.classList.toggle('locked', !isAdmin);
     };
 
+    /**
+     * **REDISEÑADO** Muestra la lista con botones explícitos de "Presente" y "Falta".
+     */
     const renderAttendanceList = () => {
         const selectedDay = daySelector.value;
         const selectedDate = getDateForDayOfWeek(selectedDay);
         const selectedDateStr = selectedDate.toISOString().slice(0, 10);
 
-        const playersForDay = players.filter(p => p.classDays.includes(selectedDay));
+        const playersForDay = players.filter(p => (p.classDays || []).includes(selectedDay));
         attendanceListContainer.innerHTML = '';
 
         if (playersForDay.length === 0) {
@@ -425,42 +425,35 @@ document.addEventListener('DOMContentLoaded', () => {
         Object.keys(groupedBySchedule).sort().forEach(schedule => {
             const scheduleContainer = document.createElement('div');
             const formattedDate = selectedDate.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' });
-            const formattedSchedule = formatSchedule(schedule);
-            scheduleContainer.innerHTML = `<h3>Horario ${formattedSchedule} <span class="attendance-date">(${formattedDate})</span></h3>`;
+            scheduleContainer.innerHTML = `<h3>Horario ${formatSchedule(schedule)} <span class="attendance-date">(${formattedDate})</span></h3>`;
 
-            groupedBySchedule[schedule].forEach(player => {
+            groupedBySchedule[schedule].sort((a,b) => a.name.localeCompare(b.name)).forEach(player => {
                 const attendanceRecord = player.attendance.find(a => a.date === selectedDateStr);
-                const statusClass = attendanceRecord ? (attendanceRecord.status === 'presente' ? 'presente' : 'falta') : '';
-                const card = document.createElement('div');
-                card.className = `player-attendance-card`;
-
-                const cardInfo = document.createElement('div');
-                cardInfo.className = `player-attendance-info ${statusClass}`;
-                cardInfo.dataset.playerId = player.id;
-
+                
                 const coachForThisClassId = attendanceRecord?.overrideCoachId || player.coachId;
                 let coachName = "No asignado";
-                if (coachForThisClassId === 'Ambos') {
-                    coachName = 'Ambos';
-                } else {
+                if (coachForThisClassId === 'Ambos') coachName = 'Ambos';
+                else {
                     const coach = coaches.find(c => c.id == coachForThisClassId);
                     if (coach) coachName = coach.name;
                 }
+                
+                const card = document.createElement('div');
+                card.className = 'player-attendance-card';
 
-                cardInfo.innerHTML = `
-                    <strong>${player.name}</strong>
-                    ${player.mainServiceType === 'academia' || player.individualType === 'paquete4' ? `<div class="faltas">Faltas: ${player.attendance.filter(a => a.status === 'falta').length}</div>` : ''}
+                card.innerHTML = `
+                    <div class="player-attendance-info">
+                        <strong>${player.name}</strong>
+                        <div class="attendance-coach">
+                            <span>${coachName}</span>
+                            <button class="action-button-small edit-class-coach-btn admin-feature" data-player-id="${player.id}" data-class-date="${selectedDateStr}">${ICONS.change}</button>
+                        </div>
+                    </div>
+                    <div class="attendance-actions">
+                        <button class="action-button-small present-btn ${attendanceRecord?.status === 'presente' ? 'active' : ''}" data-player-id="${player.id}" data-status="presente">Presente</button>
+                        <button class="action-button-small absent-btn ${attendanceRecord?.status === 'falta' ? 'active' : ''}" data-player-id="${player.id}" data-status="falta">Falta</button>
+                    </div>
                 `;
-
-                const coachDiv = document.createElement('div');
-                coachDiv.className = 'attendance-coach';
-                coachDiv.innerHTML = `
-                    <span>${coachName}</span>
-                    <button class="action-button-small edit-class-coach-btn admin-feature" data-player-id="${player.id}" data-class-date="${selectedDateStr}">${ICONS.change}</button>
-                `;
-
-                card.appendChild(cardInfo);
-                card.appendChild(coachDiv);
                 scheduleContainer.appendChild(card);
             });
             attendanceListContainer.appendChild(scheduleContainer);
@@ -482,11 +475,11 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         if (filteredPlayers.length === 0) {
-            summaryTableBody.innerHTML = '<tr><td colspan="4" style="text-align:center;">No hay jugadores que coincidan con los filtros.</td></tr>';
+            summaryTableBody.innerHTML = '<tr><td colspan="4" style="text-align:center;">No hay jugadores que coincidan.</td></tr>';
             return;
         }
 
-        filteredPlayers.forEach(player => {
+        filteredPlayers.sort((a,b) => a.name.localeCompare(b.name)).forEach(player => {
             const remaining = getRemainingClasses(player);
             const row = document.createElement('tr');
             if ((player.mainServiceType === 'academia' || player.individualType === 'paquete4') && remaining <= 2) {
@@ -498,7 +491,7 @@ document.addEventListener('DOMContentLoaded', () => {
                  detailsText = `Clases Restantes: ${remaining}`;
             }
 
-            const paymentDate = player.paid && player.paymentDate ? new Date(player.paymentDate).toLocaleDateString('es-ES') : '';
+            const paymentDate = player.paid && player.paymentDate ? new Date(player.paymentDate + "T12:00:00Z").toLocaleDateString('es-ES') : '';
             const paymentText = player.paid ? `Pagado <span class="payment-date">(${paymentDate})</span>` : 'Pendiente';
 
             let actionsHtml = '';
@@ -526,7 +519,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const renderCommissions = () => {
         const selectedFortnight = fortnightSelector.value;
         if (!selectedFortnight) {
-            commissionsResultsContainer.innerHTML = '<p style="color: var(--functional-red);">Por favor, selecciona un periodo quincenal.</p>';
+            commissionsResultsContainer.innerHTML = '<p>Por favor, selecciona un periodo.</p>';
             return;
         }
 
@@ -548,8 +541,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const coachIdForCommission = player.coachId; 
 
                 if (coachIdForCommission === 'Ambos' && coaches.length >= 2) {
-                    const coach1 = coaches[0];
-                    const coach2 = coaches[1];
+                    const coach1 = coaches[0]; const coach2 = coaches[1];
                     const commission1 = price * (coach1.commissionRate / 100) / 2;
                     const commission2 = price * (coach2.commissionRate / 100) / 2;
 
@@ -578,28 +570,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 `<li>${cls.playerName} (${cls.classType}) - Comisión: $${cls.commission.toFixed(2)}</li>`
             ).join('');
 
-            commissionsResultsContainer.innerHTML += `
-                <div class="commission-card">
-                    <h3>${data.name}</h3>
-                    <p><strong>Comisión Total:</strong> $${data.total.toFixed(2)} MXN</p>
-                    <h4>Resumen de Clases Pagadas en Periodo:</h4>
-                    <ul class="commission-detail-list">${classesList || '<li>No hay clases pagadas en este periodo.</li>'}</ul>
-                </div>`;
+            commissionsResultsContainer.innerHTML += `<div class="commission-card"><h3>${data.name}</h3><p><strong>Comisión Total:</strong> $${data.total.toFixed(2)} MXN</p><h4>Clases Pagadas en Periodo:</h4><ul class="commission-detail-list">${classesList || '<li>Ninguna.</li>'}</ul></div>`;
         });
     };
 
     const calculatePrice = (data) => {
         try {
-            if (data.mainServiceType === 'academia') {
-                return PRICES.academia[data.academyType] || 0;
-            } else if (data.mainServiceType === 'individual') {
-                const numPeople = data.numPeople || 1;
-                return PRICES.individual[data.individualType][numPeople] || 0;
-            }
+            if (data.mainServiceType === 'academia') return PRICES.academia[data.academyType] || 0;
+            else if (data.mainServiceType === 'individual') return PRICES.individual[data.individualType][data.numPeople || 1] || 0;
         } catch (e) { return 0; }
         return 0;
     };
-
     const updatePriceSummary = () => {
         const formData = {
             mainServiceType: document.getElementById('main-service-type').value,
@@ -611,7 +592,6 @@ document.addEventListener('DOMContentLoaded', () => {
         priceSummaryCard.classList.toggle('hidden', price <= 0);
         totalCostDisplay.textContent = `$${price.toFixed(2)} MXN`;
     };
-
     const handleModalForm = () => {
         const mainService = mainServiceTypeSelect.value;
         academiaDetails.classList.toggle('hidden', mainService !== 'academia');
@@ -620,41 +600,12 @@ document.addEventListener('DOMContentLoaded', () => {
         if (mainService === 'academia') handleAcademyType();
         updatePriceSummary();
     };
-
     const handleAcademyType = () => {
         const academyType = academyTypeSelect.value;
         ageField.classList.toggle('hidden', academyType !== 'ninos');
         levelField.classList.toggle('hidden', academyType !== 'adultos');
         updatePriceSummary();
     };
-
-    const autoMarkAbsences = () => {
-        const now = new Date();
-        const todayStr = now.toISOString().slice(0, 10);
-        const lastCheck = localStorage.getItem('lastAbsenceCheck');
-
-        if (now.getHours() < 19 || lastCheck === todayStr) {
-            return;
-        }
-
-        let updated = false;
-        const todayDayOfWeek = now.getDay();
-
-        players.forEach(p => {
-            if (p.classDays.includes(String(todayDayOfWeek)) && !p.attendance.some(att => att.date === todayStr)) {
-                p.attendance.push({ date: todayStr, status: 'falta' });
-                updated = true;
-            }
-        });
-
-        if(updated) {
-            console.log('Faltas automáticas registradas.');
-            saveData();
-            refreshAllViews();
-        }
-        localStorage.setItem('lastAbsenceCheck', todayStr);
-    };
-
     const refreshAllViews = () => {
         const activeTab = document.querySelector('.nav-button.active')?.dataset.tab;
         if(activeTab === 'inicio') renderDashboard();
@@ -678,9 +629,7 @@ document.addEventListener('DOMContentLoaded', () => {
         playerForm.reset();
         document.getElementById('player-id').value = '';
         document.getElementById('modal-title').textContent = player ? 'Editar Jugador' : 'Registrar Nuevo Jugador';
-
         populateCoachSelect(); 
-
         if (player) {
             document.getElementById('player-id').value = player.id;
             document.getElementById('player-name').value = player.name;
@@ -704,7 +653,6 @@ document.addEventListener('DOMContentLoaded', () => {
         handleModalForm();
         playerModal.style.display = 'block';
     };
-
     const openEditSummaryModal = (player) => {
         document.getElementById('edit-summary-player-id').value = player.id;
         document.getElementById('edit-summary-title').textContent = `Editar Paquete de ${player.name}`;
@@ -716,13 +664,11 @@ document.addEventListener('DOMContentLoaded', () => {
     addPlayerBtn.addEventListener('click', () => openPlayerModal());
     closeModalBtn.addEventListener('click', () => playerModal.style.display = 'none');
     closeEditSummaryModalBtn.addEventListener('click', () => editSummaryModal.style.display = 'none');
-
     playerForm.addEventListener('change', updatePriceSummary);
     mainServiceTypeSelect.addEventListener('change', handleModalForm);
     academyTypeSelect.addEventListener('change', handleAcademyType);
     adminLockBtn.addEventListener('click', handleAdminLock);
     applySummaryFiltersBtn.addEventListener('click', renderSummaryTable);
-
     manageCoachesBtn.addEventListener('click', () => openCoachModal());
     closeCoachModalBtn.addEventListener('click', () => coachModal.style.display = 'none');
 
@@ -761,7 +707,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-
     playerForm.addEventListener('submit', (e) => {
         e.preventDefault();
         const id = document.getElementById('player-id').value;
@@ -780,16 +725,13 @@ document.addEventListener('DOMContentLoaded', () => {
         };
         if (id) {
             const playerIndex = players.findIndex(p => p.id == id);
-            if (playerData.schedule.startsWith("''")) {
-                playerData.schedule = playerData.schedule.substring(1);
-            }
+            if (playerData.schedule.startsWith("''")) playerData.schedule = playerData.schedule.substring(1);
             players[playerIndex] = { ...players[playerIndex], ...playerData };
         } else {
-            players.push({ ...playerData, id: Date.now(), attendance: [], paid: false, paymentDate: null, manualClassAdjustment: 0 });
+            players.push({ ...playerData, id: Date.now(), attendance: [], historicalAttendance: [], paid: false, paymentDate: null, manualClassAdjustment: 0 });
         }
         saveData();
-        renderPlayersList();
-        renderDashboard();
+        refreshAllViews();
         playerModal.style.display = 'none';
     });
 
@@ -797,7 +739,6 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!isAdmin) return;
         const target = e.target.closest('button');
         if (!target) return;
-
         const id = target.dataset.id;
         if (target.classList.contains('edit-btn')) {
             openPlayerModal(players.find(p => p.id == id));
@@ -806,38 +747,47 @@ document.addEventListener('DOMContentLoaded', () => {
             if (confirm('¿Estás seguro?')) {
                 players = players.filter(p => p.id != id);
                 saveData();
-                renderPlayersList();
-                renderDashboard();
+                refreshAllViews();
             }
         }
     });
 
     daySelector.addEventListener('change', renderAttendanceList);
 
+    /**
+     * **REDISEÑADO** Maneja los clics en los botones "Presente" y "Falta".
+     */
     attendanceListContainer.addEventListener('click', (e) => {
         if (!isAdmin) return;
+        const button = e.target.closest('button');
+        if (!button) return;
 
-        const button = e.target.closest('button.edit-class-coach-btn');
-        if (button) {
-            const playerId = button.dataset.playerId;
+        const playerId = button.dataset.playerId;
+        
+        if (button.classList.contains('edit-class-coach-btn')) {
             const classDate = button.dataset.classDate;
             openChangeCoachModal(playerId, classDate);
             return;
         }
 
-        const cardInfo = e.target.closest('.player-attendance-info');
-        if (cardInfo) {
-            const player = players.find(p => p.id == cardInfo.dataset.playerId);
+        if (button.classList.contains('present-btn') || button.classList.contains('absent-btn')) {
+            const newStatus = button.dataset.status;
+            const player = players.find(p => p.id == playerId);
             const selectedDateStr = getDateForDayOfWeek(daySelector.value).toISOString().slice(0, 10);
             let attendanceRecord = player.attendance.find(a => a.date === selectedDateStr);
 
             if (attendanceRecord) {
-                attendanceRecord.status = attendanceRecord.status === 'presente' ? 'falta' : 'presente';
-            } else {
-                player.attendance.push({ date: selectedDateStr, status: 'presente' });
+                // Si el estado es el mismo, se des-selecciona (vuelve a neutro)
+                if (attendanceRecord.status === newStatus) {
+                    player.attendance = player.attendance.filter(a => a.date !== selectedDateStr);
+                } else { // Si el estado es diferente, se actualiza
+                    attendanceRecord.status = newStatus;
+                }
+            } else { // Si no hay registro, se crea uno nuevo
+                player.attendance.push({ date: selectedDateStr, status: newStatus });
             }
-
-            if(getRemainingClasses(player) <= 0) {
+            
+            if (getRemainingClasses(player) <= 0) {
                 player.paid = false;
                 player.paymentDate = null;
             }
@@ -861,31 +811,28 @@ document.addEventListener('DOMContentLoaded', () => {
             player.paid = !player.paid;
             player.paymentDate = player.paid ? new Date().toISOString().slice(0, 10) : null;
             saveData();
-            renderSummaryTable();
-            renderDashboard();
+            refreshAllViews();
         } else if (target.classList.contains('edit-classes-btn')) {
             openEditSummaryModal(player);
         } else if (target.classList.contains('renew-package-btn')) {
             const packageSize = player.individualType === 'paquete4' ? 4 : 8;
-            player.manualClassAdjustment = (player.manualClassAdjustment || 0) + packageSize;
+            player.manualClassAdjustment = (player.manualClassAdjustment || 0) + getRemainingClasses(player);
+            player.attendance = []; // Limpia asistencias al renovar
             player.paid = true;
             player.paymentDate = new Date().toISOString().slice(0, 10);
             saveData();
-            renderSummaryTable();
-            renderDashboard();
+            refreshAllViews();
         } else if (target.classList.contains('delete-summary-btn')) {
-            if(confirm(`¿Seguro que quieres eliminar a ${player.name} de la lista?`)) {
+            if(confirm(`¿Seguro que quieres eliminar a ${player.name}?`)) {
                 players = players.filter(p => p.id != id);
                 saveData();
-                renderSummaryTable();
-                renderDashboard();
+                refreshAllViews();
             }
         } else if (target.classList.contains('whatsapp-btn')) {
             const phone = target.dataset.phone;
             const name = target.dataset.name;
-            const message = `¡Hola ${name}! 🎾 Notamos que te queda 1 clase en tu paquete de academia en Padel Palmira. ¡Has estado dando lo mejor en la cancha! 😎 Sigue mejorando tu juego con nuestro paquete de clases. 💪 ¿Deseas renovar tu paquete ahora?`;
-            const encodedMessage = encodeURIComponent(message);
-            window.open(`https://wa.me/52${phone}?text=${encodedMessage}`, '_blank');
+            const message = `¡Hola ${name}! 🎾 Notamos que te queda 1 clase en tu paquete. ¡Sigue mejorando tu juego con nuestro paquete de clases! 💪 ¿Deseas renovar?`;
+            window.open(`https://wa.me/52${phone}?text=${encodeURIComponent(message)}`, '_blank');
         }
     });
 
@@ -893,54 +840,48 @@ document.addEventListener('DOMContentLoaded', () => {
         e.preventDefault();
         const playerId = document.getElementById('edit-summary-player-id').value;
         const player = players.find(p => p.id == playerId);
-
         if (player) {
             const newAmount = parseInt(document.getElementById('edit-remaining-classes').value, 10);
             const newDateStr = document.getElementById('edit-payment-date').value;
 
             if (!isNaN(newAmount)) {
+                const totalAttendance = [...player.attendance, ...player.historicalAttendance];
                 const packageSize = player.individualType === 'paquete4' ? 4 : 8;
-                const absences = player.attendance.filter(a => a.status === 'falta').length;
+                const absences = totalAttendance.filter(a => a.status === 'falta').length;
                 const effectiveAbsences = player.mainServiceType === 'academia' ? Math.min(absences, 2) : absences;
-                const attendedClasses = player.attendance.filter(a => a.status === 'presente').length + (absences - effectiveAbsences);
-                player.manualClassAdjustment = newAmount - (packageSize - attendedClasses);
-            }
+                const attendedClasses = totalAttendance.filter(a => a.status === 'presente').length;
+                const classesUsed = attendedClasses + effectiveAbsences;
 
+                player.manualClassAdjustment = newAmount - (packageSize - classesUsed);
+            }
             if (newDateStr) {
                 player.paymentDate = newDateStr;
                 player.paid = true;
             }
-
             saveData();
-            renderSummaryTable();
-            renderDashboard();
+            refreshAllViews();
             editSummaryModal.style.display = 'none';
         }
     });
 
     calculateCommissionsBtn.addEventListener('click', renderCommissions);
-
     closeChangeCoachModalBtn.addEventListener('click', () => changeCoachModal.style.display = 'none');
     changeCoachForm.addEventListener('submit', (e) => {
         e.preventDefault();
         const playerId = document.getElementById('change-coach-player-id').value;
         const classDate = document.getElementById('change-coach-class-date').value;
         const newCoachId = coachOverrideSelect.value;
-
         const player = players.find(p => p.id == playerId);
         let attendanceRecord = player.attendance.find(a => a.date === classDate);
-
         if (!attendanceRecord) {
             player.attendance.push({ date: classDate, status: 'presente', overrideCoachId: newCoachId });
         } else {
             attendanceRecord.overrideCoachId = newCoachId;
         }
-
         saveData();
         renderAttendanceList();
         changeCoachModal.style.display = 'none';
     });
-
 
     // --- INICIALIZACIÓN ---
     const initApp = () => {
@@ -950,21 +891,18 @@ document.addEventListener('DOMContentLoaded', () => {
                 { id: 2, name: 'Luis', commissionRate: 33 }
             ];
         }
-
         for (let i = 8; i <= 23; i++) {
             scheduleTimeSelect.add(new Option(`${String(i).padStart(2, '0')}:00`, `${String(i).padStart(2, '0')}:00`));
         }
         let todayDay = new Date().getDay();
         daySelector.value = todayDay === 0 ? '0' : todayDay.toString();
+        
+        archiveOldAttendance(); // **NUEVO** Archiva registros viejos al iniciar.
 
         renderCoachesList();
         populateFortnightSelector();
         document.querySelector('.nav-button[data-tab="inicio"]').click();
-
         setInterval(() => loadData(false), 20000); 
-
-        autoMarkAbsences();
-        setInterval(autoMarkAbsences, 3600000);
     };
 
     loadData(true);
