@@ -167,6 +167,15 @@ body {
 .action-button.whatsapp-btn { background: var(--whatsapp-green); color: var(--palmira-white); }
 .action-button.full-width-button { width: 100%; margin-top: 18px; }
 .action-button-small { padding: 7px 10px; font-size: 0.85em; text-transform: none; gap: 5px; }
+/* **NUEVO:** Estilos para los iconos SVG dentro de los botones */
+.action-button-small .icon-svg {
+    width: 1.2em;
+    height: 1.2em;
+}
+.action-button .icon-svg { /* Para botones más grandes */
+    width: 1.4em;
+    height: 1.4em;
+}
 .summary-actions { display: flex; flex-wrap: wrap; gap: 5px; justify-content: flex-end; align-items: center; }
 
 .payment-status-btn { padding: 6px 12px; color: white; text-align: center;}
@@ -194,7 +203,7 @@ body {
     display: flex; align-items: center; justify-content: space-between;
     padding: 0; background: var(--palmira-white); border: 1px solid var(--palmira-medium-gray);
     border-radius: var(--border-radius-medium); margin-bottom: 10px;
-    overflow: hidden; /* Para que el borde se aplique bien */
+    overflow: hidden; 
     transition: background-color 0.3s ease;
 }
 #attendance-list-container .player-attendance-info {
@@ -206,6 +215,16 @@ body {
 #attendance-list-container .player-attendance-info.presente { background-color: var(--palmira-cyan-light); }
 #attendance-list-container .player-attendance-info.falta { opacity: 0.7; background-color: #ffebee; }
 .attendance-coach { display: flex; align-items: center; gap: 10px; padding-right: 15px; }
+/* **NUEVO:** Estilos para el botón de cambio de entrenador en asistencia */
+.attendance-coach .action-button-small {
+    background: transparent;
+    color: var(--palmira-dark-text);
+    padding: 5px;
+}
+.attendance-coach .action-button-small:hover {
+    background: rgba(0,0,0,0.1);
+}
+
 
 /* Modal */
 .modal {

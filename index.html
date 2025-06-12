@@ -5,6 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Gestión de Academia de Pádel</title>
     <link rel="stylesheet" href="style.css">
+    <!-- El CSS de Font Awesome ya no es estrictamente necesario si solo usábamos los iconos que reemplazamos, 
+         pero lo dejo por si se usa en otro lugar (ej. el icono de candado) -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -144,11 +146,10 @@
                         <h2><i class="fa-solid fa-file-invoice-dollar"></i> Comisiones de Entrenadores</h2>
                         <button id="manage-coaches-btn" class="action-button primary-action"><i class="fa-solid fa-users-gear"></i> Gestionar</button>
                     </div>
+                    <!-- **CAMBIO:** Se reemplazan los inputs de fecha por un selector de quincena -->
                     <div class="filters">
-                        <label for="start-date">Fecha Inicio:</label>
-                        <input type="date" id="start-date" class="styled-input">
-                        <label for="end-date">Fecha Fin:</label>
-                        <input type="date" id="end-date" class="styled-input">
+                        <label for="fortnight-selector">Selecciona la Quincena:</label>
+                        <select id="fortnight-selector" class="styled-select"></select>
                         <button id="calculate-commissions-btn" class="action-button secondary-action">Calcular</button>
                     </div>
                     <div id="commissions-results-container"></div>

@@ -13,8 +13,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const summaryTableBody = document.querySelector('#summary-table tbody');
     const calculateCommissionsBtn = document.getElementById('calculate-commissions-btn');
     const commissionsResultsContainer = document.getElementById('commissions-results-container');
-    const startDateInput = document.getElementById('start-date');
-    const endDateInput = document.getElementById('end-date');
+    const fortnightSelector = document.getElementById('fortnight-selector');
     const scheduleTimeSelect = document.getElementById('schedule-time');
     const adminLockBtn = document.getElementById('admin-lock-btn');
     const adminLockIcon = adminLockBtn.querySelector('i');
@@ -27,7 +26,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const paymentFilter = document.getElementById('payment-filter');
     const serviceTypeFilter = document.getElementById('service-type-filter');
     const applySummaryFiltersBtn = document.getElementById('apply-summary-filters');
-    
+
     // --- ELEMENTOS DEL MODAL (JUGADOR) ---
     const mainServiceTypeSelect = document.getElementById('main-service-type');
     const academiaDetails = document.getElementById('step-academia-details');
@@ -39,7 +38,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const priceSummaryCard = document.getElementById('price-summary');
     const totalCostDisplay = document.getElementById('total-cost-display');
     const coachSelect = document.getElementById('coach-select');
-    
+
     // --- ELEMENTOS DEL MODAL (ENTRENADOR) ---
     const coachModal = document.getElementById('coach-modal');
     const closeCoachModalBtn = coachModal.querySelector('.close-button');
@@ -59,7 +58,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let isAdmin = false;
     let isDataLoading = false;
     let lastDataState = '';
-    
+
     // --- CONSTANTES ---
     const PRICES = {
         academia: { ninos: 1800, adultos: 2200 },
@@ -71,6 +70,14 @@ document.addEventListener('DOMContentLoaded', () => {
     const ADMIN_PIN = "5858";
     const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxiVyICkhHFOzwWhsltcAWj46lKeweGSSiJNfSBjpCN_3lzuYDH4p_oY_-oe6I0FRX-/exec";
 
+    const ICONS = {
+        renew: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="icon-svg"><path fill-rule="evenodd" d="M4.755 10.059a7.5 7.5 0 0112.548-3.364l1.903 1.903h-4.518a.75.75 0 00-.75.75v4.518l1.903-1.903a.75.75 0 00-1.18-1.181h-.002a6 6 0 10-9.28 4.903a.75.75 0 001.03-1.03A7.5 7.5 0 014.755 10.059z" clip-rule="evenodd" /></svg>`,
+        whatsapp: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="icon-svg"><path d="M16.6 14.2l-.3-.1c-1.4-.7-2.8-1.4-4.2-2.1-.2-.1-.4 0-.6.1-.2.2-.4.4-.6.6-.2.2-.4.3-.7.2-.2-.1-.5-.2-.7-.3-.6-.2-1.1-.6-1.6-1-.5-.4-.9-.9-1.2-1.5-.1-.2-.1-.4 0-.6.1-.1.2-.2.3-.3.1-.1.2-.2.2-.4 0-.2 0-.4-.1-.6 0-.2-.1-.4-.1-.6l-.7-1.7c-.1-.2-.3-.4-.5-.4h-.3c-.2 0-.4 0-.6.1-.2.1-.4.3-.6.5-.2.2-.4.5-.5.8-.1.3-.2.6-.1.9.1.5.3 1 .6 1.5.3.5.7 1 1.1 1.5.8.9 1.7 1.7 2.8 2.3.7.4 1.4.7 2.2.9.2.1.4.1.6.1.2 0 .4 0 .6-.1.2-.1.4-.2.5-.3.2-.1.3-.3.4-.5.1-.2.2-.4.2-.6l-.1-.9c0-.2-.1-.4-.2-.5zM12 2a10 10 0 100 20 10 10 0 000-20zm0 18.5a8.5 8.5 0 110-17 8.5 8.5 0 010 17z" /></svg>`,
+        edit: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="icon-svg"><path d="M21.731 2.269a2.625 2.625 0 00-3.712 0l-1.157 1.157 3.712 3.712 1.157-1.157a2.625 2.625 0 000-3.712zM19.513 8.199l-3.712-3.712-8.4 8.4a5.25 5.25 0 00-1.32 2.214l-.8 2.685a.75.75 0 00.933.933l2.685-.8a5.25 5.25 0 002.214-1.32l8.4-8.4z" /><path d="M5.25 5.25a3 3 0 00-3 3v10.5a3 3 0 003 3h10.5a3 3 0 003-3V13.5a.75.75 0 00-1.5 0v5.25a1.5 1.5 0 01-1.5 1.5H5.25a1.5 1.5 0 01-1.5-1.5V8.25a1.5 1.5 0 011.5-1.5h5.25a.75.75 0 000-1.5H5.25z" /></svg>`,
+        delete: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="icon-svg"><path fill-rule="evenodd" d="M16.5 4.478v.227a48.816 48.816 0 013.878.512.75.75 0 11-.256 1.478l-.209-.035-1.005 13.07a3 3 0 01-2.991 2.77H8.084a3 3 0 01-2.991-2.77L4.087 6.66l-.209.035a.75.75 0 01-.256-1.478A48.567 48.567 0 017.5 4.705v-.227c0-1.564 1.213-2.9 2.816-2.9h1.368c1.603 0 2.816 1.336 2.816 2.9zM12 3.25a.75.75 0 01.75.75v.008l.008-.008a.75.75 0 01.75-.75h.008a.75.75 0 01.75.75v.008l.008-.008a.75.75 0 01.75-.75h.008a.75.75 0 01.75.75v.008l.008-.008a.75.75 0 01.75-.75H12a.75.75 0 01-.75.75v-.008l-.008.008A.75.75 0 0112 3.25z" clip-rule="evenodd" /></svg>`,
+        change: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="icon-svg"><path fill-rule="evenodd" d="M15.97 2.47a.75.75 0 011.06 0l4.5 4.5a.75.75 0 010 1.06l-4.5 4.5a.75.75 0 11-1.06-1.06l3.22-3.22H7.5a.75.75 0 010-1.5h11.69l-3.22-3.22a.75.75 0 010-1.06zm-7.94 9a.75.75 0 010 1.06l-3.22 3.22H16.5a.75.75 0 010 1.5H4.81l3.22 3.22a.75.75 0 11-1.06 1.06l-4.5-4.5a.75.75 0 010-1.06l4.5-4.5a.75.75 0 011.06 0z" clip-rule="evenodd" /></svg>`
+    };
+
     // --- FUNCIONES DE DATOS (CON GOOGLE SHEETS) ---
     async function loadData(isInitialLoad = false) {
         if (isDataLoading) {
@@ -79,7 +86,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         isDataLoading = true;
         if (isInitialLoad) {
-            document.body.classList.add('saving'); // Usar la clase 'saving' para mostrar un estado de carga inicial
+            document.body.classList.add('saving'); 
         }
 
         try {
@@ -88,33 +95,48 @@ document.addEventListener('DOMContentLoaded', () => {
                 throw new Error(`HTTP error! status: ${response.status}`);
             }
             const data = await response.json();
-            
+
             const newDataState = JSON.stringify(data);
             if (newDataState === lastDataState) {
                 console.log("Sin cambios en los datos. No se requiere actualización.");
                 return;
             }
             lastDataState = newDataState;
-            
+
             players = data.players || [];
             coaches = data.coaches || [];
-            
-            // Forzar conversión de tipos de datos que vienen de Sheets
+
+            // Forzar conversión de tipos de datos y NORMALIZAR HORARIOS
             players.forEach(p => {
                 p.id = parseInt(p.id, 10);
                 p.paid = String(p.paid).toLowerCase() === 'true';
                 p.manualClassAdjustment = parseInt(p.manualClassAdjustment, 10) || 0;
+
+                // **CORRECCIÓN DEFINITIVA PARA EL BUG DEL HORARIO**
+                // Si el horario es una cadena que contiene 'T' (indicativo de una fecha completa de Google Sheets),
+                // se convierte a un objeto Date y se extrae la hora local del navegador.
+                if (typeof p.schedule === 'string' && p.schedule.includes('T')) {
+                    try {
+                        const date = new Date(p.schedule);
+                        // Usar getHours() en lugar de getUTCHours() para obtener la hora en la zona horaria local del usuario.
+                        const hours = String(date.getHours()).padStart(2, '0');
+                        p.schedule = `${hours}:00`;
+                    } catch (e) {
+                        console.error(`Error al parsear el horario para el jugador ${p.name}: ${p.schedule}`, e);
+                    }
+                }
             });
+
             coaches.forEach(c => {
                 c.id = parseInt(c.id, 10);
                 c.commissionRate = parseFloat(c.commissionRate);
             });
             console.log("Datos actualizados desde Google Sheets.");
-            
+
             if (isInitialLoad) {
-                initApp(); // Iniciar la app solo la primera vez
+                initApp();
             } else {
-                refreshAllViews(); // Refrescar vistas en cargas posteriores
+                refreshAllViews();
             }
 
         } catch (error) {
@@ -140,7 +162,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 body: JSON.stringify({ players, coaches }),
             });
             console.log("Datos enviados para guardar en Google Sheets.");
-            // Forzar una recarga inmediata de los datos para confirmar el estado
             setTimeout(() => loadData(), 1000); 
         } catch (error) {
             console.error("Error al guardar datos en Google Sheets:", error);
@@ -172,7 +193,7 @@ document.addEventListener('DOMContentLoaded', () => {
             alert("PIN incorrecto.");
         }
     };
-    
+
     // --- LÓGICA DE ENTRENADORES ---
     const renderCoachesList = () => {
         coachListContainer.innerHTML = '';
@@ -181,8 +202,8 @@ document.addEventListener('DOMContentLoaded', () => {
             li.innerHTML = `
                 <span>${coach.name} (${coach.commissionRate}%)</span>
                 <div class="coach-actions">
-                    <button class="action-button-small secondary-action edit-coach-btn" data-id="${coach.id}"><i class="fa-solid fa-pen"></i></button>
-                    <button class="action-button-small danger-action delete-coach-btn" data-id="${coach.id}"><i class="fa-solid fa-trash"></i></button>
+                    <button class="action-button-small secondary-action edit-coach-btn" data-id="${coach.id}">${ICONS.edit}</button>
+                    <button class="action-button-small danger-action delete-coach-btn" data-id="${coach.id}">${ICONS.delete}</button>
                 </div>
             `;
             coachListContainer.appendChild(li);
@@ -200,7 +221,7 @@ document.addEventListener('DOMContentLoaded', () => {
         selectElement.innerHTML += `<option value="Ambos">Ambos</option>`;
         selectElement.value = currentCoachValue;
     };
-    
+
     const openCoachModal = (coach = null) => {
         coachForm.reset();
         coachForm.querySelector('#coach-id').value = '';
@@ -218,12 +239,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
         changeCoachForm.querySelector('#change-coach-player-id').value = playerId;
         changeCoachForm.querySelector('#change-coach-class-date').value = classDate;
-        
+
         populateCoachSelect(coachOverrideSelect);
-        
+
         const currentCoachId = attendanceRecord?.overrideCoachId || player.coachId;
         coachOverrideSelect.value = currentCoachId;
-        
+
         changeCoachModal.style.display = 'block';
     };
 
@@ -240,6 +261,56 @@ document.addEventListener('DOMContentLoaded', () => {
         targetDate.setDate(today.getDate() + dayDifference);
         return targetDate;
     };
+
+    const populateFortnightSelector = () => {
+        fortnightSelector.innerHTML = '';
+        const today = new Date();
+        const monthNames = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
+
+        for (let i = 0; i < 6; i++) { 
+            const date = new Date(today.getFullYear(), today.getMonth() - i, 1);
+            const month = date.getMonth();
+            const year = date.getFullYear();
+            const lastDayOfMonth = new Date(year, month + 1, 0).getDate();
+
+            const endSecond = new Date(year, month, lastDayOfMonth).toISOString().slice(0, 10);
+            const startSecond = new Date(year, month, 16).toISOString().slice(0, 10);
+            const optionSecond = document.createElement('option');
+            optionSecond.value = `${startSecond}_${endSecond}`;
+            optionSecond.textContent = `16 al ${lastDayOfMonth} de ${monthNames[month]}, ${year}`;
+            fortnightSelector.appendChild(optionSecond);
+
+            const endFirst = new Date(year, month, 15).toISOString().slice(0, 10);
+            const startFirst = new Date(year, month, 1).toISOString().slice(0, 10);
+            const optionFirst = document.createElement('option');
+            optionFirst.value = `${startFirst}_${endFirst}`;
+            optionFirst.textContent = `1 al 15 de ${monthNames[month]}, ${year}`;
+            fortnightSelector.appendChild(optionFirst);
+        }
+    };
+
+    const formatSchedule = (scheduleString) => {
+        // Maneja el formato de fecha incorrecto de Google Sheets
+        if (typeof scheduleString === 'string' && (scheduleString.includes('1899-12-31') || scheduleString.includes('T'))) {
+            const date = new Date(scheduleString);
+            // Usar getHours() para obtener la hora local correcta
+            const startHour = date.getHours();
+            const endHour = startHour + 1;
+            return `${String(startHour).padStart(2, '0')}:00 a ${String(endHour).padStart(2, '0')}:00`;
+        }
+
+        // Maneja el formato de hora correcto "HH:MM"
+        if (typeof scheduleString === 'string' && /^\d{2}:\d{2}$/.test(scheduleString)) {
+            const [startHourStr] = scheduleString.split(':');
+            const startHour = parseInt(startHourStr, 10);
+            const endHour = startHour + 1;
+            return `${scheduleString} a ${String(endHour).padStart(2, '0')}:00`;
+        }
+
+        // Fallback para cualquier otro formato inesperado
+        return scheduleString;
+    };
+
 
     // --- FUNCIONES DE RENDERIZADO Y LÓGICA ---
     const getRemainingClasses = (player) => {
@@ -292,7 +363,7 @@ document.addEventListener('DOMContentLoaded', () => {
         sergioClassesStat.textContent = Math.round(classesCount['Sergio'] || 0);
         luisClassesStat.textContent = Math.round(classesCount['Luis'] || 0);
     };
-    
+
     const renderPlayersList = () => {
         playerListContainer.innerHTML = '';
         if (players.length === 0) {
@@ -316,18 +387,18 @@ document.addEventListener('DOMContentLoaded', () => {
                 const coach = coaches.find(c => c.id == player.coachId);
                 if (coach) coachName = coach.name;
             }
-            
+
             const phoneInfo = player.phone ? ` | 📞 ${player.phone}` : '';
 
             li.innerHTML = `
                 <div class="player-info">
                     <strong>${player.name}</strong>
                     <span>${details}</span>
-                    <span>Horario: ${player.schedule} - Entrenador: ${coachName}${phoneInfo}</span>
+                    <span>Horario: ${formatSchedule(player.schedule)} - Entrenador: ${coachName}${phoneInfo}</span>
                 </div>
                 <div class="player-actions admin-feature">
-                    <button class="action-button-small secondary-action edit-btn" data-id="${player.id}"><i class="fa-solid fa-pen-to-square"></i> Editar</button>
-                    <button class="action-button-small danger-action delete-btn" data-id="${player.id}"><i class="fa-solid fa-trash"></i> Eliminar</button>
+                    <button class="action-button-small secondary-action edit-btn" data-id="${player.id}">${ICONS.edit}</button>
+                    <button class="action-button-small danger-action delete-btn" data-id="${player.id}">${ICONS.delete}</button>
                 </div>
             `;
             playerListContainer.appendChild(li);
@@ -356,18 +427,19 @@ document.addEventListener('DOMContentLoaded', () => {
         Object.keys(groupedBySchedule).sort().forEach(schedule => {
             const scheduleContainer = document.createElement('div');
             const formattedDate = selectedDate.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' });
-            scheduleContainer.innerHTML = `<h3>Horario: ${schedule} (${formattedDate})</h3>`;
+            const formattedSchedule = formatSchedule(schedule);
+            scheduleContainer.innerHTML = `<h3>Horario ${formattedSchedule} <span class="attendance-date">(${formattedDate})</span></h3>`;
 
             groupedBySchedule[schedule].forEach(player => {
                 const attendanceRecord = player.attendance.find(a => a.date === selectedDateStr);
                 const statusClass = attendanceRecord ? (attendanceRecord.status === 'presente' ? 'presente' : 'falta') : '';
                 const card = document.createElement('div');
                 card.className = `player-attendance-card`;
-                
+
                 const cardInfo = document.createElement('div');
                 cardInfo.className = `player-attendance-info ${statusClass}`;
                 cardInfo.dataset.playerId = player.id;
-                
+
                 const coachForThisClassId = attendanceRecord?.overrideCoachId || player.coachId;
                 let coachName = "No asignado";
                 if (coachForThisClassId === 'Ambos') {
@@ -376,7 +448,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     const coach = coaches.find(c => c.id == coachForThisClassId);
                     if (coach) coachName = coach.name;
                 }
-                
+
                 cardInfo.innerHTML = `
                     <strong>${player.name}</strong>
                     ${player.mainServiceType === 'academia' || player.individualType === 'paquete4' ? `<div class="faltas">Faltas: ${player.attendance.filter(a => a.status === 'falta').length}</div>` : ''}
@@ -386,7 +458,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 coachDiv.className = 'attendance-coach';
                 coachDiv.innerHTML = `
                     <span>${coachName}</span>
-                    <button class="action-button-small edit-class-coach-btn admin-feature" data-player-id="${player.id}" data-class-date="${selectedDateStr}"><i class="fa-solid fa-right-left"></i></button>
+                    <button class="action-button-small edit-class-coach-btn admin-feature" data-player-id="${player.id}" data-class-date="${selectedDateStr}">${ICONS.change}</button>
                 `;
 
                 card.appendChild(cardInfo);
@@ -397,7 +469,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
         body.classList.toggle('locked', !isAdmin);
     };
-    
+
     const renderSummaryTable = () => {
         summaryTableBody.innerHTML = '';
         let filteredPlayers = [...players];
@@ -422,7 +494,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if ((player.mainServiceType === 'academia' || player.individualType === 'paquete4') && remaining <= 2) {
                 row.classList.add('low-classes');
             }
-            
+
             let detailsText = `Clase Individual (Única)`;
             if (player.mainServiceType === 'academia' || player.individualType === 'paquete4') {
                  detailsText = `Clases Restantes: ${remaining}`;
@@ -430,16 +502,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const paymentDate = player.paid && player.paymentDate ? new Date(player.paymentDate).toLocaleDateString('es-ES') : '';
             const paymentText = player.paid ? `Pagado <span class="payment-date">(${paymentDate})</span>` : 'Pendiente';
-            
+
             let actionsHtml = '';
             if (player.mainServiceType === 'academia' || player.individualType === 'paquete4') {
-                if (remaining === 1 && player.phone) {
-                    actionsHtml += `<button class="action-button-small whatsapp-btn" data-name="${player.name}" data-phone="${player.phone}"><i class="fab fa-whatsapp"></i></button>`;
+                if (remaining <= 1 && player.phone) {
+                    actionsHtml += `<button class="action-button-small whatsapp-btn" data-name="${player.name}" data-phone="${player.phone}">${ICONS.whatsapp}</button>`;
                 }
-                actionsHtml += `<button class="action-button-small secondary-action renew-package-btn" data-id="${player.id}">Renovar</button>`;
-                actionsHtml += `<button class="action-button-small secondary-action edit-classes-btn" data-id="${player.id}"><i class="fa-solid fa-pen"></i></button>`;
+                actionsHtml += `<button class="action-button-small renew-package-btn" data-id="${player.id}">${ICONS.renew}</button>`;
+                actionsHtml += `<button class="action-button-small secondary-action edit-classes-btn" data-id="${player.id}">${ICONS.edit}</button>`;
             }
-            actionsHtml += `<button class="action-button-small danger-action delete-summary-btn" data-id="${player.id}"><i class="fa-solid fa-trash"></i></button>`;
+            actionsHtml += `<button class="action-button-small danger-action delete-summary-btn" data-id="${player.id}">${ICONS.delete}</button>`;
 
             row.innerHTML = `
                 <td data-label="Jugador">${player.name}</td>
@@ -454,17 +526,17 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     const renderCommissions = () => {
-        const startDate = startDateInput.value;
-        const endDate = endDateInput.value;
-
-        if (!startDate || !endDate) {
-            commissionsResultsContainer.innerHTML = '<p style="color: var(--functional-red);">Por favor, selecciona un rango de fechas.</p>';
+        const selectedFortnight = fortnightSelector.value;
+        if (!selectedFortnight) {
+            commissionsResultsContainer.innerHTML = '<p style="color: var(--functional-red);">Por favor, selecciona un periodo quincenal.</p>';
             return;
         }
-        
+
+        const [startDate, endDate] = selectedFortnight.split('_');
+
         let commissions = {};
         coaches.forEach(c => { commissions[c.id] = { name: c.name, total: 0, rate: c.commissionRate, classesTaught: [] }; });
-        
+
         players.forEach(player => {
             const paidInPeriod = player.paid && player.paymentDate >= startDate && player.paymentDate <= endDate;
             if (paidInPeriod) {
@@ -474,7 +546,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     classType: player.mainServiceType === 'academia' ? `Academia ${player.academyType}` : `Individual ${player.individualType}`,
                     price: price
                 };
-                
+
                 const coachIdForCommission = player.coachId; 
 
                 if (coachIdForCommission === 'Ambos' && coaches.length >= 2) {
@@ -482,7 +554,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     const coach2 = coaches[1];
                     const commission1 = price * (coach1.commissionRate / 100) / 2;
                     const commission2 = price * (coach2.commissionRate / 100) / 2;
-                    
+
                     if (commissions[coach1.id]) {
                         commissions[coach1.id].total += commission1;
                         commissions[coach1.id].classesTaught.push({ ...classDetail, commission: commission1 });
@@ -501,7 +573,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
         });
-        
+
         commissionsResultsContainer.innerHTML = '';
         Object.values(commissions).forEach(data => {
             let classesList = data.classesTaught.map(cls => 
@@ -591,7 +663,6 @@ document.addEventListener('DOMContentLoaded', () => {
         if(activeTab === 'registro') renderPlayersList();
         if(activeTab === 'asistencia') renderAttendanceList();
         if(activeTab === 'resumen') renderSummaryTable();
-        // No es necesario refrescar entrenadores ya que los cambios se hacen en el modal
     };
 
     // --- MANEJADORES DE EVENTOS ---
@@ -601,7 +672,7 @@ document.addEventListener('DOMContentLoaded', () => {
             tab.classList.add('active');
             const target = tab.getAttribute('data-tab');
             tabContents.forEach(content => content.classList.toggle('active', content.id === `${target}-tab`));
-            refreshAllViews(); // Refresca la vista de la pestaña activa
+            refreshAllViews(); 
         });
     });
 
@@ -767,7 +838,7 @@ document.addEventListener('DOMContentLoaded', () => {
             renderSummaryTable();
         }
     });
-    
+
     summaryTableBody.addEventListener('click', (e) => {
         if (!isAdmin) return;
         const target = e.target.closest('button');
@@ -795,9 +866,8 @@ document.addEventListener('DOMContentLoaded', () => {
         } else if (target.classList.contains('renew-package-btn')) {
             const packageSize = player.individualType === 'paquete4' ? 4 : 8;
             player.manualClassAdjustment = (player.manualClassAdjustment || 0) + packageSize;
-            player.paid = false;
-            player.paymentDate = null;
-             alert(`Paquete de ${player.name} renovado. Ahora tiene ${getRemainingClasses(player)} clases restantes.`);
+            player.paid = true;
+            player.paymentDate = new Date().toISOString().slice(0, 10);
         } else if (target.classList.contains('delete-summary-btn')) {
             if(confirm(`¿Seguro que quieres eliminar a ${player.name} de la lista?`)) {
                 players = players.filter(p => p.id != id);
@@ -841,7 +911,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- INICIALIZACIÓN ---
     const initApp = () => {
-        // Esta función se llama después de que los datos iniciales se cargan
         if (coaches.length === 0) {
             coaches = [
                 { id: 1, name: 'Sergio', commissionRate: 33 },
@@ -849,23 +918,21 @@ document.addEventListener('DOMContentLoaded', () => {
             ];
         }
 
-        for (let i = 8; i <= 23; i++) { // Rango de horas extendido
+        for (let i = 8; i <= 23; i++) {
             scheduleTimeSelect.add(new Option(`${String(i).padStart(2, '0')}:00`, `${String(i).padStart(2, '0')}:00`));
         }
         let todayDay = new Date().getDay();
         daySelector.value = todayDay === 0 ? '0' : todayDay.toString();
 
         renderCoachesList();
+        populateFortnightSelector();
         document.querySelector('.nav-button[data-tab="inicio"]').click();
 
-        // Inicia el polling para actualizaciones automáticas
-        setInterval(() => loadData(false), 20000); // Actualiza cada 20 segundos
+        setInterval(() => loadData(false), 20000); 
 
-        // Comprobación de ausencias al inicio y luego periódicamente
         autoMarkAbsences();
-        setInterval(autoMarkAbsences, 3600000); // Cada hora
+        setInterval(autoMarkAbsences, 3600000);
     };
 
-    // Iniciar la carga de datos al abrir la app
     loadData(true);
 });
