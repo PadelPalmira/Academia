@@ -52,6 +52,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const changeCoachForm = document.getElementById('change-coach-form');
     const coachOverrideSelect = document.getElementById('coach-override-select');
 
+    // **NUEVO**: Referencias al modal de edición de resumen
+    const editSummaryModal = document.getElementById('edit-summary-modal');
+    const editSummaryForm = document.getElementById('edit-summary-form');
+    const closeEditSummaryModalBtn = editSummaryModal.querySelector('.close-button');
+
     // --- ESTADO DE LA APLICACIÓN ---
     let players = [];
     let coaches = [];
@@ -106,15 +111,25 @@ document.addEventListener('DOMContentLoaded', () => {
             players = data.players || [];
             coaches = data.coaches || [];
 
-            // Forzar conversión de tipos de datos y NORMALIZAR HORARIOS
             players.forEach(p => {
                 p.id = parseInt(p.id, 10);
                 p.paid = String(p.paid).toLowerCase() === 'true';
                 p.manualClassAdjustment = parseInt(p.manualClassAdjustment, 10) || 0;
 
-                // **CORRECCIÓN: Quitar la comilla simple del horario al cargarlo**
+                // **SOLUCIÓN DEFINITIVA PARA HORARIOS**
+                // 1. Si el dato viene "blindado" con comilla, se la quitamos.
                 if (p.schedule && typeof p.schedule === 'string' && p.schedule.startsWith("'")) {
                     p.schedule = p.schedule.substring(1);
+                } 
+                // 2. Si es un dato antiguo y corrupto (formato fecha), lo reparamos.
+                else if (p.schedule && typeof p.schedule === 'string' && p.schedule.includes('T')) {
+                    try {
+                        const date = new Date(p.schedule);
+                        const hours = String(date.getUTCHours()).padStart(2, '0');
+                        p.schedule = `${hours}:00`;
+                    } catch (e) {
+                        console.error(`Error al reparar el horario para el jugador ${p.name}: ${p.schedule}`, e);
+                    }
                 }
             });
 
@@ -239,7 +254,6 @@ document.addEventListener('DOMContentLoaded', () => {
         changeCoachModal.style.display = 'block';
     };
 
-
     // --- FUNCIONES DE FECHA ---
     const getDateForDayOfWeek = (dayOfWeek) => {
         const today = new Date();
@@ -254,7 +268,7 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     const populateFortnightSelector = () => {
-        if (!fortnightSelector) return; // Chequeo de seguridad
+        if (!fortnightSelector) return;
         fortnightSelector.innerHTML = '';
         const today = new Date();
         const monthNames = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
@@ -272,7 +286,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 optionSecond.value = `${startSecond}_${endSecond}`;
                 optionSecond.textContent = `16 al ${lastDayOfMonth} de ${monthNames[month]}, ${year}`;
                 fortnightSelector.appendChild(optionSecond);
-                
+
                 const endFirst = new Date(year, month, 15).toISOString().slice(0, 10);
                 const startFirst = new Date(year, month, 1).toISOString().slice(0, 10);
                 const optionFirst = document.createElement('option');
@@ -285,7 +299,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
-    // **CORRECCIÓN: La función ahora es más simple, ya no necesita parsear fechas.**
     const formatSchedule = (scheduleString) => {
         if (typeof scheduleString === 'string' && /^\d{2}:\d{2}$/.test(scheduleString)) {
             const [startHourStr] = scheduleString.split(':');
@@ -293,7 +306,6 @@ document.addEventListener('DOMContentLoaded', () => {
             const endHour = startHour + 1;
             return `${scheduleString} a ${String(endHour).padStart(2, '0')}:00`;
         }
-        // Fallback si el dato aún no está en el formato esperado
         return scheduleString;
     };
 
@@ -517,7 +529,7 @@ document.addEventListener('DOMContentLoaded', () => {
             commissionsResultsContainer.innerHTML = '<p style="color: var(--functional-red);">Por favor, selecciona un periodo quincenal.</p>';
             return;
         }
-        
+
         const [startDate, endDate] = selectedFortnight.split('_');
 
         let commissions = {};
@@ -693,8 +705,17 @@ document.addEventListener('DOMContentLoaded', () => {
         playerModal.style.display = 'block';
     };
 
+    const openEditSummaryModal = (player) => {
+        document.getElementById('edit-summary-player-id').value = player.id;
+        document.getElementById('edit-summary-title').textContent = `Editar Paquete de ${player.name}`;
+        document.getElementById('edit-remaining-classes').value = getRemainingClasses(player);
+        document.getElementById('edit-payment-date').value = player.paymentDate || new Date().toISOString().slice(0, 10);
+        editSummaryModal.style.display = 'block';
+    };
+
     addPlayerBtn.addEventListener('click', () => openPlayerModal());
     closeModalBtn.addEventListener('click', () => playerModal.style.display = 'none');
+    closeEditSummaryModalBtn.addEventListener('click', () => editSummaryModal.style.display = 'none');
 
     playerForm.addEventListener('change', updatePriceSummary);
     mainServiceTypeSelect.addEventListener('change', handleModalForm);
@@ -754,13 +775,11 @@ document.addEventListener('DOMContentLoaded', () => {
             individualType: document.getElementById('individual-type').value,
             numPeople: parseInt(document.getElementById('num-people').value),
             coachId: coachSelect.value,
-            // **CORRECCIÓN: Guardar el horario "blindado" con una comilla simple**
             schedule: "'" + scheduleTimeSelect.value,
             classDays: Array.from(document.querySelectorAll('input[name="class-day"]:checked')).map(cb => cb.value),
         };
         if (id) {
             const playerIndex = players.findIndex(p => p.id == id);
-            // Al editar, nos aseguramos que no se duplique la comilla
             if (playerData.schedule.startsWith("''")) {
                 playerData.schedule = playerData.schedule.substring(1);
             }
@@ -841,27 +860,25 @@ document.addEventListener('DOMContentLoaded', () => {
         if (target.classList.contains('payment-status-btn')) {
             player.paid = !player.paid;
             player.paymentDate = player.paid ? new Date().toISOString().slice(0, 10) : null;
+            saveData();
+            renderSummaryTable();
+            renderDashboard();
         } else if (target.classList.contains('edit-classes-btn')) {
-            const currentClasses = getRemainingClasses(player);
-            const newAmountStr = prompt(`Clases restantes actuales: ${currentClasses}.\nIntroduce el nuevo número de clases restantes para ${player.name}:`);
-            if (newAmountStr !== null) {
-                const newAmount = parseInt(newAmountStr, 10);
-                if (!isNaN(newAmount)) {
-                    const packageSize = player.individualType === 'paquete4' ? 4 : 8;
-                    const absences = player.attendance.filter(a => a.status === 'falta').length;
-                    const effectiveAbsences = player.mainServiceType === 'academia' ? Math.min(absences, 2) : absences;
-                    const attendedClasses = player.attendance.filter(a => a.status === 'presente').length + (absences - effectiveAbsences);
-                    player.manualClassAdjustment = newAmount - (packageSize - attendedClasses);
-                }
-            }
+            openEditSummaryModal(player);
         } else if (target.classList.contains('renew-package-btn')) {
             const packageSize = player.individualType === 'paquete4' ? 4 : 8;
             player.manualClassAdjustment = (player.manualClassAdjustment || 0) + packageSize;
             player.paid = true;
             player.paymentDate = new Date().toISOString().slice(0, 10);
+            saveData();
+            renderSummaryTable();
+            renderDashboard();
         } else if (target.classList.contains('delete-summary-btn')) {
             if(confirm(`¿Seguro que quieres eliminar a ${player.name} de la lista?`)) {
                 players = players.filter(p => p.id != id);
+                saveData();
+                renderSummaryTable();
+                renderDashboard();
             }
         } else if (target.classList.contains('whatsapp-btn')) {
             const phone = target.dataset.phone;
@@ -870,10 +887,35 @@ document.addEventListener('DOMContentLoaded', () => {
             const encodedMessage = encodeURIComponent(message);
             window.open(`https://wa.me/52${phone}?text=${encodedMessage}`, '_blank');
         }
+    });
 
-        saveData();
-        renderSummaryTable();
-        renderDashboard();
+    editSummaryForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const playerId = document.getElementById('edit-summary-player-id').value;
+        const player = players.find(p => p.id == playerId);
+
+        if (player) {
+            const newAmount = parseInt(document.getElementById('edit-remaining-classes').value, 10);
+            const newDateStr = document.getElementById('edit-payment-date').value;
+
+            if (!isNaN(newAmount)) {
+                const packageSize = player.individualType === 'paquete4' ? 4 : 8;
+                const absences = player.attendance.filter(a => a.status === 'falta').length;
+                const effectiveAbsences = player.mainServiceType === 'academia' ? Math.min(absences, 2) : absences;
+                const attendedClasses = player.attendance.filter(a => a.status === 'presente').length + (absences - effectiveAbsences);
+                player.manualClassAdjustment = newAmount - (packageSize - attendedClasses);
+            }
+
+            if (newDateStr) {
+                player.paymentDate = newDateStr;
+                player.paid = true;
+            }
+
+            saveData();
+            renderSummaryTable();
+            renderDashboard();
+            editSummaryModal.style.display = 'none';
+        }
     });
 
     calculateCommissionsBtn.addEventListener('click', renderCommissions);

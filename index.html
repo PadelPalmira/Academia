@@ -146,7 +146,6 @@
                         <h2><i class="fa-solid fa-file-invoice-dollar"></i> Comisiones de Entrenadores</h2>
                         <button id="manage-coaches-btn" class="action-button primary-action"><i class="fa-solid fa-users-gear"></i> Gestionar</button>
                     </div>
-                    <!-- **CAMBIO:** Se reemplazan los inputs de fecha por un selector de quincena -->
                     <div class="filters">
                         <label for="fortnight-selector">Selecciona la Quincena:</label>
                         <select id="fortnight-selector" class="styled-select"></select>
@@ -263,6 +262,25 @@
                 <label for="coach-override-select">Selecciona el nuevo entrenador para esta clase:</label>
                 <select id="coach-override-select" class="styled-select" required></select>
                 <button type="submit" class="action-button primary-action full-width-button">Guardar Cambio</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- **NUEVO** Modal para Editar Resumen de Paquete -->
+    <div id="edit-summary-modal" class="modal">
+        <div class="modal-content">
+            <span class="close-button">&times;</span>
+            <h3 id="edit-summary-title">Editar Paquete de Jugador</h3>
+            <form id="edit-summary-form">
+                <input type="hidden" id="edit-summary-player-id">
+                
+                <label for="edit-remaining-classes">Clases Restantes:</label>
+                <input type="number" id="edit-remaining-classes" class="styled-input" required min="0">
+                
+                <label for="edit-payment-date">Fecha de Pago del Paquete:</label>
+                <input type="date" id="edit-payment-date" class="styled-input" required>
+                
+                <button type="submit" class="action-button primary-action full-width-button">Guardar Cambios</button>
             </form>
         </div>
     </div>
