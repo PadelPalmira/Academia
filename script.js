@@ -112,19 +112,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 p.paid = String(p.paid).toLowerCase() === 'true';
                 p.manualClassAdjustment = parseInt(p.manualClassAdjustment, 10) || 0;
 
-                // **CORRECCIÓN DEFINITIVA PARA EL BUG DEL HORARIO**
-                // Si el horario es una cadena que contiene 'T' (indicativo de una fecha completa de Google Sheets),
-                // se convierte a un objeto Date y se extrae la hora UTC, que es como Sheets la serializa.
-                if (typeof p.schedule === 'string' && p.schedule.includes('T')) {
-                    try {
-                        const date = new Date(p.schedule);
-                        // Usar getUTCHours() para asegurar que obtenemos la hora correcta
-                        // independientemente de la zona horaria del navegador.
-                        const hours = String(date.getUTCHours()).padStart(2, '0');
-                        p.schedule = `${hours}:00`;
-                    } catch (e) {
-                        console.error(`Error al parsear el horario para el jugador ${p.name}: ${p.schedule}`, e);
-                    }
+                // **CORRECCIÓN: Quitar la comilla simple del horario al cargarlo**
+                if (p.schedule && typeof p.schedule === 'string' && p.schedule.startsWith("'")) {
+                    p.schedule = p.schedule.substring(1);
                 }
             });
 
@@ -264,51 +254,46 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     const populateFortnightSelector = () => {
+        if (!fortnightSelector) return; // Chequeo de seguridad
         fortnightSelector.innerHTML = '';
         const today = new Date();
         const monthNames = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
 
-        for (let i = 0; i < 6; i++) { 
-            const date = new Date(today.getFullYear(), today.getMonth() - i, 1);
-            const month = date.getMonth();
-            const year = date.getFullYear();
-            const lastDayOfMonth = new Date(year, month + 1, 0).getDate();
+        try {
+            for (let i = 0; i < 6; i++) { 
+                const date = new Date(today.getFullYear(), today.getMonth() - i, 1);
+                const month = date.getMonth();
+                const year = date.getFullYear();
+                const lastDayOfMonth = new Date(year, month + 1, 0).getDate();
 
-            const endSecond = new Date(year, month, lastDayOfMonth).toISOString().slice(0, 10);
-            const startSecond = new Date(year, month, 16).toISOString().slice(0, 10);
-            const optionSecond = document.createElement('option');
-            optionSecond.value = `${startSecond}_${endSecond}`;
-            optionSecond.textContent = `16 al ${lastDayOfMonth} de ${monthNames[month]}, ${year}`;
-            fortnightSelector.appendChild(optionSecond);
-            
-            const endFirst = new Date(year, month, 15).toISOString().slice(0, 10);
-            const startFirst = new Date(year, month, 1).toISOString().slice(0, 10);
-            const optionFirst = document.createElement('option');
-            optionFirst.value = `${startFirst}_${endFirst}`;
-            optionFirst.textContent = `1 al 15 de ${monthNames[month]}, ${year}`;
-            fortnightSelector.appendChild(optionFirst);
+                const endSecond = new Date(year, month, lastDayOfMonth).toISOString().slice(0, 10);
+                const startSecond = new Date(year, month, 16).toISOString().slice(0, 10);
+                const optionSecond = document.createElement('option');
+                optionSecond.value = `${startSecond}_${endSecond}`;
+                optionSecond.textContent = `16 al ${lastDayOfMonth} de ${monthNames[month]}, ${year}`;
+                fortnightSelector.appendChild(optionSecond);
+                
+                const endFirst = new Date(year, month, 15).toISOString().slice(0, 10);
+                const startFirst = new Date(year, month, 1).toISOString().slice(0, 10);
+                const optionFirst = document.createElement('option');
+                optionFirst.value = `${startFirst}_${endFirst}`;
+                optionFirst.textContent = `1 al 15 de ${monthNames[month]}, ${year}`;
+                fortnightSelector.appendChild(optionFirst);
+            }
+        } catch (error) {
+            console.error("Error populando el selector de quincenas:", error);
         }
     };
 
+    // **CORRECCIÓN: La función ahora es más simple, ya no necesita parsear fechas.**
     const formatSchedule = (scheduleString) => {
-        // Maneja el formato de fecha incorrecto de Google Sheets
-        if (typeof scheduleString === 'string' && (scheduleString.includes('1899-12-31') || scheduleString.includes('T'))) {
-            const date = new Date(scheduleString);
-            // Usar getUTCHours() como fallback por si la normalización en loadData falla.
-            const startHour = date.getUTCHours();
-            const endHour = startHour + 1;
-            return `${String(startHour).padStart(2, '0')}:00 a ${String(endHour).padStart(2, '0')}:00`;
-        }
-        
-        // Maneja el formato de hora correcto "HH:MM"
         if (typeof scheduleString === 'string' && /^\d{2}:\d{2}$/.test(scheduleString)) {
             const [startHourStr] = scheduleString.split(':');
             const startHour = parseInt(startHourStr, 10);
             const endHour = startHour + 1;
             return `${scheduleString} a ${String(endHour).padStart(2, '0')}:00`;
         }
-    
-        // Fallback para cualquier otro formato inesperado
+        // Fallback si el dato aún no está en el formato esperado
         return scheduleString;
     };
 
@@ -769,11 +754,16 @@ document.addEventListener('DOMContentLoaded', () => {
             individualType: document.getElementById('individual-type').value,
             numPeople: parseInt(document.getElementById('num-people').value),
             coachId: coachSelect.value,
-            schedule: scheduleTimeSelect.value,
+            // **CORRECCIÓN: Guardar el horario "blindado" con una comilla simple**
+            schedule: "'" + scheduleTimeSelect.value,
             classDays: Array.from(document.querySelectorAll('input[name="class-day"]:checked')).map(cb => cb.value),
         };
         if (id) {
             const playerIndex = players.findIndex(p => p.id == id);
+            // Al editar, nos aseguramos que no se duplique la comilla
+            if (playerData.schedule.startsWith("''")) {
+                playerData.schedule = playerData.schedule.substring(1);
+            }
             players[playerIndex] = { ...players[playerIndex], ...playerData };
         } else {
             players.push({ ...playerData, id: Date.now(), attendance: [], paid: false, paymentDate: null, manualClassAdjustment: 0 });
