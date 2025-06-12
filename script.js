@@ -114,12 +114,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 // **CORRECCIÓN DEFINITIVA PARA EL BUG DEL HORARIO**
                 // Si el horario es una cadena que contiene 'T' (indicativo de una fecha completa de Google Sheets),
-                // se convierte a un objeto Date y se extrae la hora local del navegador.
+                // se convierte a un objeto Date y se extrae la hora UTC, que es como Sheets la serializa.
                 if (typeof p.schedule === 'string' && p.schedule.includes('T')) {
                     try {
                         const date = new Date(p.schedule);
-                        // Usar getHours() en lugar de getUTCHours() para obtener la hora en la zona horaria local del usuario.
-                        const hours = String(date.getHours()).padStart(2, '0');
+                        // Usar getUTCHours() para asegurar que obtenemos la hora correcta
+                        // independientemente de la zona horaria del navegador.
+                        const hours = String(date.getUTCHours()).padStart(2, '0');
                         p.schedule = `${hours}:00`;
                     } catch (e) {
                         console.error(`Error al parsear el horario para el jugador ${p.name}: ${p.schedule}`, e);
@@ -279,7 +280,7 @@ document.addEventListener('DOMContentLoaded', () => {
             optionSecond.value = `${startSecond}_${endSecond}`;
             optionSecond.textContent = `16 al ${lastDayOfMonth} de ${monthNames[month]}, ${year}`;
             fortnightSelector.appendChild(optionSecond);
-
+            
             const endFirst = new Date(year, month, 15).toISOString().slice(0, 10);
             const startFirst = new Date(year, month, 1).toISOString().slice(0, 10);
             const optionFirst = document.createElement('option');
@@ -293,12 +294,12 @@ document.addEventListener('DOMContentLoaded', () => {
         // Maneja el formato de fecha incorrecto de Google Sheets
         if (typeof scheduleString === 'string' && (scheduleString.includes('1899-12-31') || scheduleString.includes('T'))) {
             const date = new Date(scheduleString);
-            // Usar getHours() para obtener la hora local correcta
-            const startHour = date.getHours();
+            // Usar getUTCHours() como fallback por si la normalización en loadData falla.
+            const startHour = date.getUTCHours();
             const endHour = startHour + 1;
             return `${String(startHour).padStart(2, '0')}:00 a ${String(endHour).padStart(2, '0')}:00`;
         }
-
+        
         // Maneja el formato de hora correcto "HH:MM"
         if (typeof scheduleString === 'string' && /^\d{2}:\d{2}$/.test(scheduleString)) {
             const [startHourStr] = scheduleString.split(':');
@@ -306,7 +307,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const endHour = startHour + 1;
             return `${scheduleString} a ${String(endHour).padStart(2, '0')}:00`;
         }
-
+    
         // Fallback para cualquier otro formato inesperado
         return scheduleString;
     };
@@ -531,7 +532,7 @@ document.addEventListener('DOMContentLoaded', () => {
             commissionsResultsContainer.innerHTML = '<p style="color: var(--functional-red);">Por favor, selecciona un periodo quincenal.</p>';
             return;
         }
-
+        
         const [startDate, endDate] = selectedFortnight.split('_');
 
         let commissions = {};
