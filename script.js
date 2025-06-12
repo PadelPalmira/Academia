@@ -176,7 +176,7 @@ document.addEventListener('DOMContentLoaded', () => {
         else if (pin) alert("PIN incorrecto.");
     };
 
-    // --- LÓGICA DE ENTRENADORES (sin cambios) ---
+    // --- LÓGICA DE ENTRENADORES ---
     const renderCoachesList = () => {
         coachListContainer.innerHTML = '';
         coaches.forEach(coach => {
@@ -263,30 +263,23 @@ document.addEventListener('DOMContentLoaded', () => {
         return scheduleString;
     };
     
-    // --- LÓGICA DE ASISTENCIA MEJORADA ---
-
-    /**
-     * **NUEVO** Archiva las asistencias de semanas pasadas al historial.
-     * Esto mantiene la lista de asistencia actual limpia, mostrando solo la semana en curso.
-     */
+    // --- LÓGICA DE ASISTENCIA ---
     const archiveOldAttendance = () => {
         const [currentYear, currentWeek] = getWeekNumber(new Date());
         let needsSave = false;
         players.forEach(player => {
             const recordsToArchive = player.attendance.filter(att => {
-                const recordDate = new Date(att.date + "T12:00:00Z"); // Use noon to avoid timezone issues
+                const recordDate = new Date(att.date + "T12:00:00Z");
                 const [recordYear, recordWeek] = getWeekNumber(recordDate);
                 return recordYear !== currentYear || recordWeek !== currentWeek;
             });
 
             if (recordsToArchive.length > 0) {
-                // Mover a historial, evitando duplicados
                 recordsToArchive.forEach(recordToArchive => {
                     if (!player.historicalAttendance.some(h => h.date === recordToArchive.date)) {
                         player.historicalAttendance.push(recordToArchive);
                     }
                 });
-                // Mantener solo los de la semana actual
                 player.attendance = player.attendance.filter(att => !recordsToArchive.find(r => r.date === att.date));
                 needsSave = true;
             }
@@ -297,9 +290,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
-    /**
-     * **MODIFICADO** Calcula clases restantes usando el historial completo.
-     */
     const getRemainingClasses = (player) => {
         if (player.mainServiceType !== 'academia' && player.individualType !== 'paquete4') return Infinity;
         
@@ -310,7 +300,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const effectiveAbsences = player.mainServiceType === 'academia' ? Math.min(absences, 2) : absences;
         const attendedClasses = allAttendance.filter(a => a.status === 'presente').length;
         
-        // El total de clases usadas es la suma de asistencias + faltas que sí cuentan.
         const classesUsed = attendedClasses + effectiveAbsences;
         
         return packageSize + (player.manualClassAdjustment || 0) - classesUsed;
@@ -322,7 +311,7 @@ document.addEventListener('DOMContentLoaded', () => {
         playersToRenewList.innerHTML = '';
         const playersToRenew = players.filter(p => getRemainingClasses(p) <= 2);
         if (playersToRenew.length > 0) {
-            playersToRenew.forEach(p => {
+            playersToRenew.sort((a,b) => getRemainingClasses(a) - getRemainingClasses(b)).forEach(p => {
                 const li = document.createElement('li');
                 li.textContent = `${p.name} - Quedan ${getRemainingClasses(p)} clases`;
                 playersToRenewList.appendChild(li);
@@ -341,7 +330,7 @@ document.addEventListener('DOMContentLoaded', () => {
         players.forEach(player => {
             [...player.attendance, ...player.historicalAttendance].forEach(att => {
                 const attDate = new Date(att.date + 'T12:00:00Z');
-                if (attDate >= startQuincena && attDate <= endQuincena) {
+                if (att.status === 'presente' && attDate >= startQuincena && attDate <= endQuincena) {
                     const coachId = att.overrideCoachId || player.coachId;
                     if (coachId === 'Ambos' && coaches.length >= 2) {
                         if(classesCount[coaches[0].name] !== undefined) classesCount[coaches[0].name] += 0.5;
@@ -401,9 +390,6 @@ document.addEventListener('DOMContentLoaded', () => {
         body.classList.toggle('locked', !isAdmin);
     };
 
-    /**
-     * **REDISEÑADO** Muestra la lista con botones explícitos de "Presente" y "Falta".
-     */
     const renderAttendanceList = () => {
         const selectedDay = daySelector.value;
         const selectedDate = getDateForDayOfWeek(selectedDay);
@@ -418,7 +404,8 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         const groupedBySchedule = playersForDay.reduce((acc, player) => {
-            (acc[player.schedule] = acc[player.schedule] || []).push(player);
+            const scheduleKey = player.schedule || "Sin horario";
+            (acc[scheduleKey] = acc[scheduleKey] || []).push(player);
             return acc;
         }, {});
 
@@ -754,9 +741,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     daySelector.addEventListener('change', renderAttendanceList);
 
-    /**
-     * **REDISEÑADO** Maneja los clics en los botones "Presente" y "Falta".
-     */
     attendanceListContainer.addEventListener('click', (e) => {
         if (!isAdmin) return;
         const button = e.target.closest('button');
@@ -777,13 +761,12 @@ document.addEventListener('DOMContentLoaded', () => {
             let attendanceRecord = player.attendance.find(a => a.date === selectedDateStr);
 
             if (attendanceRecord) {
-                // Si el estado es el mismo, se des-selecciona (vuelve a neutro)
                 if (attendanceRecord.status === newStatus) {
                     player.attendance = player.attendance.filter(a => a.date !== selectedDateStr);
-                } else { // Si el estado es diferente, se actualiza
+                } else {
                     attendanceRecord.status = newStatus;
                 }
-            } else { // Si no hay registro, se crea uno nuevo
+            } else {
                 player.attendance.push({ date: selectedDateStr, status: newStatus });
             }
             
@@ -793,9 +776,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             saveData();
-            renderAttendanceList();
-            renderDashboard();
-            renderSummaryTable();
+            refreshAllViews();
         }
     });
 
@@ -815,9 +796,10 @@ document.addEventListener('DOMContentLoaded', () => {
         } else if (target.classList.contains('edit-classes-btn')) {
             openEditSummaryModal(player);
         } else if (target.classList.contains('renew-package-btn')) {
-            const packageSize = player.individualType === 'paquete4' ? 4 : 8;
-            player.manualClassAdjustment = (player.manualClassAdjustment || 0) + getRemainingClasses(player);
-            player.attendance = []; // Limpia asistencias al renovar
+            const remaining = getRemainingClasses(player);
+            player.attendance = []; 
+            player.historicalAttendance = [];
+            player.manualClassAdjustment = 0;
             player.paid = true;
             player.paymentDate = new Date().toISOString().slice(0, 10);
             saveData();
@@ -897,7 +879,7 @@ document.addEventListener('DOMContentLoaded', () => {
         let todayDay = new Date().getDay();
         daySelector.value = todayDay === 0 ? '0' : todayDay.toString();
         
-        archiveOldAttendance(); // **NUEVO** Archiva registros viejos al iniciar.
+        archiveOldAttendance();
 
         renderCoachesList();
         populateFortnightSelector();
