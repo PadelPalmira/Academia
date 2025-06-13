@@ -52,7 +52,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const changeCoachForm = document.getElementById('change-coach-form');
     const coachOverrideSelect = document.getElementById('coach-override-select');
 
-    // **NUEVO**: Referencias al modal de edición de resumen
+    // --- Modal para Editar Resumen de Paquete ---
     const editSummaryModal = document.getElementById('edit-summary-modal');
     const editSummaryForm = document.getElementById('edit-summary-form');
     const closeEditSummaryModalBtn = editSummaryModal.querySelector('.close-button');
@@ -262,7 +262,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         return scheduleString;
     };
-    
+
     // --- LÓGICA DE ASISTENCIA ---
     const archiveOldAttendance = () => {
         const [currentYear, currentWeek] = getWeekNumber(new Date());
@@ -292,16 +292,21 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const getRemainingClasses = (player) => {
         if (player.mainServiceType !== 'academia' && player.individualType !== 'paquete4') return Infinity;
-        
+
         const allAttendance = [...player.attendance, ...player.historicalAttendance];
         const packageSize = player.individualType === 'paquete4' ? 4 : 8;
-        
-        const absences = allAttendance.filter(a => a.status === 'falta').length;
-        const effectiveAbsences = player.mainServiceType === 'academia' ? Math.min(absences, 2) : absences;
+
+        const totalAbsences = allAttendance.filter(a => a.status === 'falta').length;
+
+        // Las primeras 2 faltas no cuentan, a partir de la 3ra sí.
+        const deductibleAbsences = player.mainServiceType === 'academia' 
+            ? Math.max(0, totalAbsences - 2) 
+            : totalAbsences;
+
         const attendedClasses = allAttendance.filter(a => a.status === 'presente').length;
-        
-        const classesUsed = attendedClasses + effectiveAbsences;
-        
+
+        const classesUsed = attendedClasses + deductibleAbsences;
+
         return packageSize + (player.manualClassAdjustment || 0) - classesUsed;
     };
 
@@ -326,7 +331,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         let classesCount = {};
         coaches.forEach(c => { classesCount[c.name] = 0; });
-        
+
         players.forEach(player => {
             [...player.attendance, ...player.historicalAttendance].forEach(att => {
                 const attDate = new Date(att.date + 'T12:00:00Z');
@@ -389,7 +394,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
         body.classList.toggle('locked', !isAdmin);
     };
-    
+
     const renderAttendanceList = () => {
         const selectedDay = daySelector.value;
         const selectedDate = getDateForDayOfWeek(selectedDay);
@@ -416,7 +421,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             groupedBySchedule[schedule].sort((a,b) => a.name.localeCompare(b.name)).forEach(player => {
                 const attendanceRecord = player.attendance.find(a => a.date === selectedDateStr);
-                
+
                 const coachForThisClassId = attendanceRecord?.overrideCoachId || player.coachId;
                 let coachName = "No asignado";
                 if (coachForThisClassId === 'Ambos') coachName = 'Ambos';
@@ -424,7 +429,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     const coach = coaches.find(c => c.id == coachForThisClassId);
                     if (coach) coachName = coach.name;
                 }
-                
+
                 const card = document.createElement('div');
                 card.className = 'player-attendance-card';
 
@@ -471,12 +476,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 row.classList.add('low-classes');
             }
 
+            const totalAbsences = [...player.attendance, ...player.historicalAttendance].filter(a => a.status === 'falta').length;
             let detailsText = `Clase Individual (Única)`;
             if (player.mainServiceType === 'academia' || player.individualType === 'paquete4') {
-                 detailsText = `Clases Restantes: ${remaining}`;
+                 detailsText = `Clases: ${remaining} | Faltas: ${totalAbsences}`;
             }
 
-            // **CORREGIDO** Asegura que la fecha se interprete correctamente
             const paymentDate = player.paid && player.paymentDate ? new Date(String(player.paymentDate).slice(0,10) + "T12:00:00Z").toLocaleDateString('es-ES') : '';
             const paymentText = player.paid ? `Pagado <span class="payment-date">(${paymentDate})</span>` : 'Pendiente';
 
@@ -746,7 +751,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!button) return;
 
         const playerId = button.dataset.playerId;
-        
+
         if (button.classList.contains('edit-class-coach-btn')) {
             const classDate = button.dataset.classDate;
             openChangeCoachModal(playerId, classDate);
@@ -768,7 +773,7 @@ document.addEventListener('DOMContentLoaded', () => {
             } else {
                 player.attendance.push({ date: selectedDateStr, status: newStatus });
             }
-            
+
             if (getRemainingClasses(player) <= 0) {
                 player.paid = false;
                 player.paymentDate = null;
@@ -795,14 +800,19 @@ document.addEventListener('DOMContentLoaded', () => {
         } else if (target.classList.contains('edit-classes-btn')) {
             openEditSummaryModal(player);
         } else if (target.classList.contains('renew-package-btn')) {
-            const remaining = getRemainingClasses(player);
-            player.attendance = []; 
-            player.historicalAttendance = [];
-            player.manualClassAdjustment = 0;
-            player.paid = true;
-            player.paymentDate = new Date().toISOString().slice(0, 10);
-            saveData();
-            refreshAllViews();
+            if (confirm(`¿Seguro que quieres renovar el paquete para ${player.name}? Se reiniciarán sus clases y faltas.`)) {
+                // **MODIFICADO** Calcular clases restantes y transferirlas al nuevo paquete
+                const remaining = getRemainingClasses(player);
+
+                player.attendance = []; 
+                player.historicalAttendance = [];
+                // El nuevo ajuste manual es el saldo restante del paquete anterior
+                player.manualClassAdjustment = remaining; 
+                player.paid = true;
+                player.paymentDate = new Date().toISOString().slice(0, 10);
+                saveData();
+                refreshAllViews();
+            }
         } else if (target.classList.contains('delete-summary-btn')) {
             if(confirm(`¿Seguro que quieres eliminar a ${player.name}?`)) {
                 players = players.filter(p => p.id != id);
@@ -828,10 +838,10 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!isNaN(newAmount)) {
                 const totalAttendance = [...player.attendance, ...player.historicalAttendance];
                 const packageSize = player.individualType === 'paquete4' ? 4 : 8;
-                const absences = totalAttendance.filter(a => a.status === 'falta').length;
-                const effectiveAbsences = player.mainServiceType === 'academia' ? Math.min(absences, 2) : absences;
+                const totalAbsences = totalAttendance.filter(a => a.status === 'falta').length;
+                const deductibleAbsences = player.mainServiceType === 'academia' ? Math.max(0, totalAbsences - 2) : totalAbsences;
                 const attendedClasses = totalAttendance.filter(a => a.status === 'presente').length;
-                const classesUsed = attendedClasses + effectiveAbsences;
+                const classesUsed = attendedClasses + deductibleAbsences;
 
                 player.manualClassAdjustment = newAmount - (packageSize - classesUsed);
             }
@@ -855,10 +865,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const player = players.find(p => p.id == playerId);
         let attendanceRecord = player.attendance.find(a => a.date === classDate);
         if (!attendanceRecord) {
-            // Si no hay registro, se crea uno nuevo marcando presente y asignando el nuevo entrenador
             player.attendance.push({ date: classDate, status: 'presente', overrideCoachId: newCoachId });
         } else {
-            // Si ya hay registro, solo se actualiza el entrenador
             attendanceRecord.overrideCoachId = newCoachId;
         }
         saveData();
@@ -880,7 +888,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         let todayDay = new Date().getDay();
         daySelector.value = todayDay === 0 ? '0' : todayDay.toString();
-        
+
         archiveOldAttendance();
 
         renderCoachesList();
