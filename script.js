@@ -298,7 +298,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const totalAbsences = allAttendance.filter(a => a.status === 'falta').length;
 
-        // Las primeras 2 faltas no cuentan, a partir de la 3ra sí.
         const deductibleAbsences = player.mainServiceType === 'academia' 
             ? Math.max(0, totalAbsences - 2) 
             : totalAbsences;
@@ -308,6 +307,44 @@ document.addEventListener('DOMContentLoaded', () => {
         const classesUsed = attendedClasses + deductibleAbsences;
 
         return packageSize + (player.manualClassAdjustment || 0) - classesUsed;
+    };
+
+    // --- LÓGICA DE COMISIONES ---
+
+    // **NUEVO**: Función para calcular la comisión de una sola clase
+    const calculateCommissionPerClass = (player) => {
+        const price = calculatePrice(player);
+        if (price === 0) return 0;
+
+        let numClassesInPackage = 0;
+        if (player.mainServiceType === 'academia') {
+            numClassesInPackage = 8;
+        } else if (player.individualType === 'paquete4') {
+            numClassesInPackage = 4;
+        } else {
+            return 0; // No es un paquete, no se calcula por clase
+        }
+
+        return price / numClassesInPackage;
+    };
+
+    // **NUEVO**: Helper para saber si una falta cuenta para la comisión
+    const isAbsenceBillable = (player, attendanceRecord) => {
+        if (player.mainServiceType !== 'academia') {
+            // Para paquetes individuales, toda falta se descuenta
+            return true;
+        }
+
+        // Para academia, solo la 3ra falta en adelante es "cobrable"
+        const allAbsences = [...player.attendance, ...player.historicalAttendance]
+            .filter(a => a.status === 'falta')
+            .sort((a, b) => new Date(a.date) - new Date(b.date)); // Ordenar por fecha
+
+        const absenceIndex = allAbsences.findIndex(a => a.date === attendanceRecord.date);
+
+        // Indices 0 y 1 son las 2 faltas permitidas.
+        // A partir del índice 2 (la 3ra falta), es cobrable.
+        return absenceIndex >= 2;
     };
 
     // --- FUNCIONES DE RENDERIZADO Y LÓGICA PRINCIPAL ---
@@ -507,6 +544,7 @@ document.addEventListener('DOMContentLoaded', () => {
         body.classList.toggle('locked', !isAdmin);
     };
 
+    // **FUNCIÓN DE COMISIONES MODIFICADA**
     const renderCommissions = () => {
         const selectedFortnight = fortnightSelector.value;
         if (!selectedFortnight) {
@@ -516,54 +554,114 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const [startDate, endDate] = selectedFortnight.split('_');
 
-        let commissions = {};
-        coaches.forEach(c => { commissions[c.id] = { name: c.name, total: 0, rate: c.commissionRate, classesTaught: [] }; });
+        let commissionsData = {};
+        coaches.forEach(c => {
+            commissionsData[c.id] = {
+                name: c.name,
+                baseCommission: 0,
+                adjustments: 0,
+                paidPackages: [],
+                adjustmentDetails: []
+            };
+        });
 
+        // 1. Calcular comisiones base
         players.forEach(player => {
-            const paidInPeriod = player.paid && player.paymentDate >= startDate && player.paymentDate <= endDate;
-            if (paidInPeriod) {
+            if (player.paid && player.paymentDate >= startDate && player.paymentDate <= endDate) {
                 const price = calculatePrice(player);
-                const classDetail = {
-                    playerName: player.name,
-                    classType: player.mainServiceType === 'academia' ? `Academia ${player.academyType}` : `Individual ${player.individualType}`,
-                    price: price
-                };
+                const originalCoachId = player.coachId;
 
-                const coachIdForCommission = player.coachId; 
-
-                if (coachIdForCommission === 'Ambos' && coaches.length >= 2) {
-                    const coach1 = coaches[0]; const coach2 = coaches[1];
-                    const commission1 = price * (coach1.commissionRate / 100) / 2;
-                    const commission2 = price * (coach2.commissionRate / 100) / 2;
-
-                    if (commissions[coach1.id]) {
-                        commissions[coach1.id].total += commission1;
-                        commissions[coach1.id].classesTaught.push({ ...classDetail, commission: commission1 });
-                    }
-                    if (commissions[coach2.id]) {
-                        commissions[coach2.id].total += commission2;
-                        commissions[coach2.id].classesTaught.push({ ...classDetail, commission: commission2 });
-                    }
+                if (originalCoachId === 'Ambos') {
+                    coaches.forEach(coach => {
+                        const commission = price * (coach.commissionRate / 100) / 2;
+                        if (commissionsData[coach.id]) {
+                            commissionsData[coach.id].baseCommission += commission;
+                            commissionsData[coach.id].paidPackages.push({ playerName: player.name, amount: commission });
+                        }
+                    });
                 } else {
-                    const coach = coaches.find(c => c.id == coachIdForCommission);
-                    if (coach && commissions[coach.id]) {
-                        const commissionAmount = price * (coach.commissionRate / 100);
-                        commissions[coach.id].total += commissionAmount;
-                        commissions[coach.id].classesTaught.push({ ...classDetail, commission: commissionAmount });
+                    const coach = coaches.find(c => c.id == originalCoachId);
+                    if (coach && commissionsData[coach.id]) {
+                        const commission = price * (coach.commissionRate / 100);
+                        commissionsData[coach.id].baseCommission += commission;
+                        commissionsData[coach.id].paidPackages.push({ playerName: player.name, amount: commission });
                     }
                 }
             }
         });
 
-        commissionsResultsContainer.innerHTML = '';
-        Object.values(commissions).forEach(data => {
-            let classesList = data.classesTaught.map(cls => 
-                `<li>${cls.playerName} (${cls.classType}) - Comisión: $${cls.commission.toFixed(2)}</li>`
-            ).join('');
+        // 2. Calcular ajustes por sustituciones
+        players.forEach(player => {
+            const allAttendance = [...player.attendance, ...player.historicalAttendance];
+            allAttendance.forEach(att => {
+                const isSubstitution = att.overrideCoachId && player.coachId !== att.overrideCoachId;
+                // **NUEVA CONDICIÓN**: La clase debe ser "efectiva" para generar ajuste
+                const classIsEffective = att.status === 'presente' || (att.status === 'falta' && isAbsenceBillable(player, att));
 
-            commissionsResultsContainer.innerHTML += `<div class="commission-card"><h3>${data.name}</h3><p><strong>Comisión Total:</strong> $${data.total.toFixed(2)} MXN</p><h4>Clases Pagadas en Periodo:</h4><ul class="commission-detail-list">${classesList || '<li>Ninguna.</li>'}</ul></div>`;
+                if (att.date >= startDate && att.date <= endDate && isSubstitution && classIsEffective) {
+                    const originalCoachId = player.coachId;
+                    const substituteCoachId = att.overrideCoachId;
+
+                    const valuePerClass = calculateCommissionPerClass(player);
+                    const originalCoach = coaches.find(c => c.id == originalCoachId);
+                    const substituteCoach = coaches.find(c => c.id == substituteCoachId);
+
+                    if (originalCoachId !== 'Ambos' && originalCoach && substituteCoach) {
+                        const commissionValue = valuePerClass * (originalCoach.commissionRate / 100);
+                        commissionsData[originalCoach.id].adjustments -= commissionValue;
+                        commissionsData[originalCoach.id].adjustmentDetails.push({ date: att.date, playerName: player.name, amount: -commissionValue, reason: `Cubierto por ${substituteCoach.name}` });
+
+                        commissionsData[substituteCoach.id].adjustments += commissionValue;
+                        commissionsData[substituteCoach.id].adjustmentDetails.push({ date: att.date, playerName: player.name, amount: commissionValue, reason: `Cubrió a ${originalCoach.name}` });
+                    }
+                    else if (originalCoachId === 'Ambos' && substituteCoach) {
+                        const otherCoach = coaches.find(c => c.id != substituteCoach.id);
+                        if(otherCoach && commissionsData[otherCoach.id]) {
+                            const commissionValue = valuePerClass * (otherCoach.commissionRate / 100) / 2;
+                            commissionsData[otherCoach.id].adjustments -= commissionValue;
+                            commissionsData[otherCoach.id].adjustmentDetails.push({ date: att.date, playerName: player.name, amount: -commissionValue, reason: `Clase 'Ambos' cubierta por ${substituteCoach.name}` });
+
+                            commissionsData[substituteCoach.id].adjustments += commissionValue;
+                            commissionsData[substituteCoach.id].adjustmentDetails.push({ date: att.date, playerName: player.name, amount: commissionValue, reason: `Cubrió parte de ${otherCoach.name}` });
+                        }
+                    }
+                }
+            });
+        });
+
+        // 3. Renderizar resultados
+        commissionsResultsContainer.innerHTML = '';
+        Object.values(commissionsData).forEach(data => {
+            const finalTotal = data.baseCommission + data.adjustments;
+            const totalClass = finalTotal < 0 ? 'negative-total' : '';
+
+            let paidPackagesHtml = data.paidPackages.map(p => `<li>${p.playerName}: $${p.amount.toFixed(2)}</li>`).join('');
+            if (!paidPackagesHtml) paidPackagesHtml = '<li>Sin paquetes pagados en este periodo.</li>';
+
+            let adjustmentsHtml = data.adjustmentDetails.sort((a,b) => new Date(a.date) - new Date(b.date)).map(adj => {
+                const amountClass = adj.amount < 0 ? 'negative-adjustment' : 'positive-adjustment';
+                const sign = adj.amount > 0 ? '+' : '';
+                return `<li>${adj.date}: ${adj.reason} con ${adj.playerName} <span class="${amountClass}">${sign}$${adj.amount.toFixed(2)}</span></li>`;
+            }).join('');
+            if (!adjustmentsHtml) adjustmentsHtml = '<li>Sin ajustes en este periodo.</li>';
+
+            commissionsResultsContainer.innerHTML += `
+                <div class="commission-card">
+                    <h3>${data.name}</h3>
+                    <h4>Ingresos por Paquetes Pagados</h4>
+                    <p class="commission-subtotal">$${data.baseCommission.toFixed(2)}</p>
+                    <ul class="commission-detail-list">${paidPackagesHtml}</ul>
+                    <h4>Ajustes por Sustituciones</h4>
+                    <p class="commission-subtotal">$${data.adjustments.toFixed(2)}</p>
+                    <ul class="commission-detail-list">${adjustmentsHtml}</ul>
+                    <div class="commission-total">
+                        <strong>Total a Pagar en Quincena:</strong>
+                        <strong class="${totalClass}">$${finalTotal.toFixed(2)} MXN</strong>
+                    </div>
+                </div>`;
         });
     };
+
 
     const calculatePrice = (data) => {
         try {
@@ -801,12 +899,10 @@ document.addEventListener('DOMContentLoaded', () => {
             openEditSummaryModal(player);
         } else if (target.classList.contains('renew-package-btn')) {
             if (confirm(`¿Seguro que quieres renovar el paquete para ${player.name}? Se reiniciarán sus clases y faltas.`)) {
-                // **MODIFICADO** Calcular clases restantes y transferirlas al nuevo paquete
                 const remaining = getRemainingClasses(player);
 
                 player.attendance = []; 
                 player.historicalAttendance = [];
-                // El nuevo ajuste manual es el saldo restante del paquete anterior
                 player.manualClassAdjustment = remaining; 
                 player.paid = true;
                 player.paymentDate = new Date().toISOString().slice(0, 10);
