@@ -4,16 +4,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const tabs = document.querySelectorAll('.nav-button');
     const tabContents = document.querySelectorAll('.tab-content');
     const playerModal = document.getElementById('player-modal');
-    const closeModalBtn = document.querySelector('.modal .close-button');
+    const closeModalBtn = document.querySelector('#player-modal .close-button');
     const addPlayerBtn = document.getElementById('add-player-btn');
     const playerForm = document.getElementById('player-form');
     const playerListContainer = document.getElementById('player-list-container');
     const daySelector = document.getElementById('day-selector');
     const attendanceListContainer = document.getElementById('attendance-list-container');
     const summaryTableBody = document.querySelector('#summary-table tbody');
-    const calculateCommissionsBtn = document.getElementById('calculate-commissions-btn');
-    const commissionsResultsContainer = document.getElementById('commissions-results-container');
-    const fortnightSelector = document.getElementById('fortnight-selector');
     const scheduleTimeSelect = document.getElementById('schedule-time');
     const adminLockBtn = document.getElementById('admin-lock-btn');
     const adminLockIcon = adminLockBtn.querySelector('i');
@@ -57,12 +54,25 @@ document.addEventListener('DOMContentLoaded', () => {
     const editSummaryForm = document.getElementById('edit-summary-form');
     const closeEditSummaryModalBtn = editSummaryModal.querySelector('.close-button');
 
+    // --- NUEVO: Referencias a filtros y modales de comisión ---
+    const yearFilter = document.getElementById('year-filter');
+    const monthFilter = document.getElementById('month-filter');
+    const fortnightFilter = document.getElementById('fortnight-filter');
+    const calculateCommissionsBtn = document.getElementById('calculate-commissions-btn');
+    const commissionsResultsContainer = document.getElementById('commissions-results-container');
+    const adjustmentModal = document.getElementById('adjustment-modal');
+    const adjustmentForm = document.getElementById('adjustment-form');
+    const closeAdjustmentModalBtn = adjustmentModal.querySelector('.close-button');
+
+
     // --- ESTADO DE LA APLICACIÓN ---
     let players = [];
     let coaches = [];
+    let adjustments = []; // NUEVO: Para guardar los ajustes manuales
     let isAdmin = false;
     let isDataLoading = false;
     let lastDataState = '';
+    let commissionDataCache = {}; // NUEVO: Cache para los datos de comisión calculados
 
     // --- CONSTANTES ---
     const PRICES = {
@@ -74,7 +84,6 @@ document.addEventListener('DOMContentLoaded', () => {
     };
     const ADMIN_PIN = "5858";
     const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxiVyICkhHFOzwWhsltcAWj46lKeweGSSiJNfSBjpCN_3lzuYDH4p_oY_-oe6I0FRX-/exec";
-
     const ICONS = {
         renew: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="icon-svg"><path fill-rule="evenodd" d="M4.755 10.059a7.5 7.5 0 0112.548-3.364l1.903 1.903h-4.518a.75.75 0 00-.75.75v4.518l1.903-1.903a.75.75 0 00-1.18-1.181h-.002a6 6 0 10-9.28 4.903a.75.75 0 001.03-1.03A7.5 7.5 0 014.755 10.059z" clip-rule="evenodd" /></svg>`,
         whatsapp: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="icon-svg"><path d="M16.6 14.2l-.3-.1c-1.4-.7-2.8-1.4-4.2-2.1-.2-.1-.4 0-.6.1-.2.2-.4.4-.6.6-.2.2-.4.3-.7.2-.2-.1-.5-.2-.7-.3-.6-.2-1.1-.6-1.6-1-.5-.4-.9-.9-1.2-1.5-.1-.2-.1-.4 0-.6.1-.1.2-.2.3-.3.1-.1.2-.2.2-.4 0-.2 0-.4-.1-.6 0-.2-.1-.4-.1-.6l-.7-1.7c-.1-.2-.3-.4-.5-.4h-.3c-.2 0-.4 0-.6.1-.2.1-.4.3-.6.5-.2.2-.4.5-.5.8-.1.3-.2.6-.1.9.1.5.3 1 .6 1.5.3.5.7 1 1.1 1.5.8.9 1.7 1.7 2.8 2.3.7.4 1.4.7 2.2.9.2.1.4.1.6.1.2 0 .4 0 .6-.1.2-.1.4-.2.5-.3.2-.1.3-.3.4-.5.1-.2.2-.4.2-.6l-.1-.9c0-.2-.1-.4-.2-.5zM12 2a10 10 0 100 20 10 10 0 000-20zm0 18.5a8.5 8.5 0 110-17 8.5 8.5 0 010 17z" /></svg>`,
@@ -87,7 +96,7 @@ document.addEventListener('DOMContentLoaded', () => {
     async function loadData(isInitialLoad = false) {
         if (isDataLoading) return;
         isDataLoading = true;
-        if (isInitialLoad) document.body.classList.add('saving');
+        if (isInitialLoad) body.classList.add('saving');
 
         try {
             const response = await fetch(SCRIPT_URL);
@@ -95,11 +104,16 @@ document.addEventListener('DOMContentLoaded', () => {
             const data = await response.json();
 
             const newDataState = JSON.stringify(data);
-            if (newDataState === lastDataState && !isInitialLoad) return;
+            if (!isInitialLoad && newDataState === lastDataState) {
+                isDataLoading = false;
+                body.classList.remove('saving');
+                return;
+            }
             lastDataState = newDataState;
 
             players = data.players || [];
             coaches = data.coaches || [];
+            adjustments = data.adjustments || []; // NUEVO: Cargar ajustes
 
             players.forEach(p => {
                 p.id = parseInt(p.id, 10);
@@ -124,6 +138,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 c.commissionRate = parseFloat(c.commissionRate);
             });
 
+            adjustments.forEach(adj => {
+                adj.coachId = parseInt(adj.coachId, 10);
+                adj.amount = parseFloat(adj.amount);
+            });
+
             if (isInitialLoad) {
                 initApp();
             } else {
@@ -134,25 +153,26 @@ document.addEventListener('DOMContentLoaded', () => {
             if (isInitialLoad) alert("No se pudieron cargar los datos.");
         } finally {
             isDataLoading = false;
-            if (isInitialLoad) document.body.classList.remove('saving');
+            body.classList.remove('saving');
         }
     }
 
     async function saveData() {
         try {
-            document.body.classList.add('saving');
+            body.classList.add('saving');
+            // MODIFICADO: Enviar también los ajustes
             await fetch(SCRIPT_URL, {
                 method: 'POST',
                 mode: 'no-cors',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ players, coaches }),
+                body: JSON.stringify({ players, coaches, adjustments }),
             });
-            setTimeout(() => loadData(), 1000);
+            // La recarga se activará automáticamente por el intervalo o por la siguiente acción
         } catch (error) {
             console.error("Error al guardar datos:", error);
             alert("Error al guardar los datos.");
         } finally {
-            setTimeout(() => document.body.classList.remove('saving'), 1500);
+            setTimeout(() => body.classList.remove('saving'), 1500);
         }
     }
 
@@ -235,24 +255,6 @@ document.addEventListener('DOMContentLoaded', () => {
         targetDate.setDate(today.getDate() + dayDifference);
         return targetDate;
     };
-    const populateFortnightSelector = () => {
-        if (!fortnightSelector) return;
-        fortnightSelector.innerHTML = '';
-        const today = new Date();
-        const monthNames = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
-        for (let i = 0; i < 6; i++) {
-            const date = new Date(today.getFullYear(), today.getMonth() - i, 1);
-            const month = date.getMonth();
-            const year = date.getFullYear();
-            const lastDayOfMonth = new Date(year, month + 1, 0).getDate();
-            const endSecond = new Date(year, month, lastDayOfMonth).toISOString().slice(0, 10);
-            const startSecond = new Date(year, month, 16).toISOString().slice(0, 10);
-            fortnightSelector.innerHTML += `<option value="${startSecond}_${endSecond}">16 al ${lastDayOfMonth} de ${monthNames[month]}, ${year}</option>`;
-            const endFirst = new Date(year, month, 15).toISOString().slice(0, 10);
-            const startFirst = new Date(year, month, 1).toISOString().slice(0, 10);
-            fortnightSelector.innerHTML += `<option value="${startFirst}_${endFirst}">1 al 15 de ${monthNames[month]}, ${year}</option>`;
-        }
-    };
     const formatSchedule = (scheduleString) => {
         if (typeof scheduleString === 'string' && /^\d{2}:\d{2}$/.test(scheduleString)) {
             const [startHourStr] = scheduleString.split(':');
@@ -269,7 +271,9 @@ document.addEventListener('DOMContentLoaded', () => {
         let needsSave = false;
         players.forEach(player => {
             const recordsToArchive = player.attendance.filter(att => {
+                if (!att.date) return false;
                 const recordDate = new Date(att.date + "T12:00:00Z");
+                if (isNaN(recordDate.getTime())) return false; // Invalid date
                 const [recordYear, recordWeek] = getWeekNumber(recordDate);
                 return recordYear !== currentYear || recordWeek !== currentWeek;
             });
@@ -309,45 +313,318 @@ document.addEventListener('DOMContentLoaded', () => {
         return packageSize + (player.manualClassAdjustment || 0) - classesUsed;
     };
 
-    // --- LÓGICA DE COMISIONES ---
-
-    // **NUEVO**: Función para calcular la comisión de una sola clase
+    // --- LÓGICA DE COMISIONES (SECCIÓN REESTRUCTURADA) ---
     const calculateCommissionPerClass = (player) => {
         const price = calculatePrice(player);
         if (price === 0) return 0;
-
         let numClassesInPackage = 0;
         if (player.mainServiceType === 'academia') {
             numClassesInPackage = 8;
         } else if (player.individualType === 'paquete4') {
             numClassesInPackage = 4;
         } else {
-            return 0; // No es un paquete, no se calcula por clase
+            return 0;
         }
-
         return price / numClassesInPackage;
     };
 
-    // **NUEVO**: Helper para saber si una falta cuenta para la comisión
     const isAbsenceBillable = (player, attendanceRecord) => {
         if (player.mainServiceType !== 'academia') {
-            // Para paquetes individuales, toda falta se descuenta
             return true;
         }
-
-        // Para academia, solo la 3ra falta en adelante es "cobrable"
         const allAbsences = [...player.attendance, ...player.historicalAttendance]
             .filter(a => a.status === 'falta')
-            .sort((a, b) => new Date(a.date) - new Date(b.date)); // Ordenar por fecha
-
+            .sort((a, b) => new Date(a.date) - new Date(b.date));
         const absenceIndex = allAbsences.findIndex(a => a.date === attendanceRecord.date);
-
-        // Indices 0 y 1 son las 2 faltas permitidas.
-        // A partir del índice 2 (la 3ra falta), es cobrable.
         return absenceIndex >= 2;
     };
 
-    // --- FUNCIONES DE RENDERIZADO Y LÓGICA PRINCIPAL ---
+    // NUEVO: Llena los filtros de Año y Mes basado en los datos existentes
+    function populateDateFilters() {
+        const dates = new Set();
+        players.forEach(p => {
+            if (p.paymentDate) dates.add(p.paymentDate.slice(0, 7)); // YYYY-MM
+            const allAttendance = [...(p.attendance || []), ...(p.historicalAttendance || [])];
+            allAttendance.forEach(att => {
+                if(att.date) dates.add(att.date.slice(0, 7))
+            });
+        });
+
+        if (dates.size === 0) {
+            const today = new Date().toISOString().slice(0, 7);
+            dates.add(today);
+        }
+
+        const availableYears = [...new Set([...dates].map(d => d.slice(0, 4)))].sort((a,b) => b-a);
+        const availableMonths = {};
+        [...dates].forEach(d => {
+            const [year, month] = d.split('-');
+            if (!availableMonths[year]) availableMonths[year] = new Set();
+            availableMonths[year].add(month);
+        });
+
+        yearFilter.innerHTML = availableYears.map(y => `<option value="${y}">${y}</option>`).join('');
+        if (availableYears.length <= 1) {
+            yearFilter.style.display = 'none';
+            yearFilter.previousElementSibling.style.display = 'none';
+        } else {
+             yearFilter.style.display = 'inline-block';
+             yearFilter.previousElementSibling.style.display = 'inline-block';
+        }
+
+        function updateMonthFilter() {
+            const selectedYear = yearFilter.value;
+            const monthNames = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
+            const currentYear = new Date().getFullYear().toString();
+            const currentMonth = (new Date().getMonth() + 1).toString().padStart(2, '0');
+
+            const monthsForYear = [...(availableMonths[selectedYear] || [])].sort((a,b) => a-b);
+            monthFilter.innerHTML = monthsForYear.map(m => `<option value="${m}">${monthNames[parseInt(m,10)-1]}</option>`).join('');
+
+            if (selectedYear === currentYear && monthsForYear.includes(currentMonth)) {
+                monthFilter.value = currentMonth;
+            }
+        }
+
+        yearFilter.addEventListener('change', updateMonthFilter);
+        updateMonthFilter();
+    }
+
+    // NUEVO: Abre el modal para añadir un ajuste manual
+    function openAdjustmentModal(coachId, fortnightKey) {
+        adjustmentForm.reset();
+        document.getElementById('adjustment-coach-id').value = coachId;
+        document.getElementById('adjustment-fortnight-key').value = fortnightKey;
+
+        const coach = coaches.find(c => c.id == coachId);
+        document.getElementById('adjustment-modal-title').textContent = `Ajuste para ${coach.name}`;
+
+        const existingAdjustment = adjustments.find(adj => adj.fortnightKey === fortnightKey && adj.coachId == coachId);
+        if (existingAdjustment) {
+            document.getElementById('adjustment-amount').value = existingAdjustment.amount;
+            document.getElementById('adjustment-reason').value = existingAdjustment.reason;
+        }
+
+        adjustmentModal.style.display = 'block';
+    }
+
+    // MODIFICADO: Lógica principal de cálculo y renderizado de comisiones
+    function calculateAndRenderCommissions() {
+        const selectedYear = yearFilter.value;
+        const selectedMonth = monthFilter.value;
+        const selectedFortnight = fortnightFilter.value;
+
+        if (!selectedYear || !selectedMonth) {
+            commissionsResultsContainer.innerHTML = '<p>Por favor, selecciona año y mes.</p>';
+            return;
+        }
+
+        const monthIndex = parseInt(selectedMonth, 10) - 1;
+        let startDate, endDate;
+        if (selectedFortnight === '1') {
+            startDate = new Date(selectedYear, monthIndex, 1).toISOString().slice(0, 10);
+            endDate = new Date(selectedYear, monthIndex, 15).toISOString().slice(0, 10);
+        } else {
+            startDate = new Date(selectedYear, monthIndex, 16).toISOString().slice(0, 10);
+            endDate = new Date(selectedYear, monthIndex + 1, 0).toISOString().slice(0, 10);
+        }
+
+        const fortnightKey = `${selectedYear}-${selectedMonth}-${selectedFortnight}`;
+
+        commissionDataCache = {};
+        coaches.forEach(c => {
+            commissionDataCache[c.id] = {
+                id: c.id, name: c.name, baseCommission: 0, adjustments: 0,
+                paidPackages: [], adjustmentDetails: [], classesTaught: 0
+            };
+        });
+
+        // 1. Calcular comisiones base e ingresos
+        players.forEach(player => {
+            if (player.paid && player.paymentDate >= startDate && player.paymentDate <= endDate) {
+                const price = calculatePrice(player);
+                const originalCoachId = player.coachId;
+
+                if (originalCoachId === 'Ambos') {
+                    coaches.slice(0, 2).forEach(coach => {
+                        const commission = price * (coach.commissionRate / 100) / 2;
+                        if (commissionDataCache[coach.id]) {
+                            commissionDataCache[coach.id].baseCommission += commission;
+                            commissionDataCache[coach.id].paidPackages.push({ playerName: player.name, amount: commission });
+                        }
+                    });
+                } else {
+                    const coach = coaches.find(c => c.id == originalCoachId);
+                    if (coach && commissionDataCache[coach.id]) {
+                        const commission = price * (coach.commissionRate / 100);
+                        commissionDataCache[coach.id].baseCommission += commission;
+                        commissionDataCache[coach.id].paidPackages.push({ playerName: player.name, amount: commission });
+                    }
+                }
+            }
+        });
+
+        // 2. Calcular clases impartidas y ajustes por sustituciones
+        players.forEach(player => {
+            const allAttendance = [...player.attendance, ...player.historicalAttendance];
+            allAttendance.forEach(att => {
+                if (att.date >= startDate && att.date <= endDate) {
+                    const coachForClassId = att.overrideCoachId || player.coachId;
+
+                    // Contar clases
+                    if(att.status === 'presente'){
+                        if(coachForClassId === 'Ambos' && coaches.length >=2){
+                            if(commissionDataCache[coaches[0].id]) commissionDataCache[coaches[0].id].classesTaught += 0.5;
+                            if(commissionDataCache[coaches[1].id]) commissionDataCache[coaches[1].id].classesTaught += 0.5;
+                        } else if(commissionDataCache[coachForClassId]){
+                            commissionDataCache[coachForClassId].classesTaught++;
+                        }
+                    }
+
+                    // Calcular ajustes
+                    const isSubstitution = att.overrideCoachId && player.coachId != att.overrideCoachId;
+                    const classIsEffective = att.status === 'presente' || (att.status === 'falta' && isAbsenceBillable(player, att));
+
+                    if (isSubstitution && classIsEffective) {
+                        const originalCoachId = player.coachId;
+                        const substituteCoachId = att.overrideCoachId;
+                        const valuePerClass = calculateCommissionPerClass(player);
+                        const originalCoach = coaches.find(c => c.id == originalCoachId);
+                        const substituteCoach = coaches.find(c => c.id == substituteCoachId);
+
+                        if (originalCoachId !== 'Ambos' && originalCoach && substituteCoach && commissionDataCache[originalCoachId] && commissionDataCache[substituteCoachId]) {
+                            const commissionValue = valuePerClass * (originalCoach.commissionRate / 100);
+                            commissionDataCache[originalCoach.id].adjustments -= commissionValue;
+                            commissionDataCache[originalCoach.id].adjustmentDetails.push({ date: att.date, playerName: player.name, amount: -commissionValue, reason: `Cubierto por ${substituteCoach.name}` });
+
+                            commissionDataCache[substituteCoach.id].adjustments += commissionValue;
+                            commissionDataCache[substituteCoach.id].adjustmentDetails.push({ date: att.date, playerName: player.name, amount: commissionValue, reason: `Cubrió a ${originalCoach.name}` });
+                        }
+                        else if (originalCoachId === 'Ambos' && substituteCoach && coaches.length >=2) {
+                             const otherCoach = coaches.find(c => c.id != substituteCoach.id && commissionDataCache[c.id]);
+                            if(otherCoach) {
+                                const commissionValue = (valuePerClass * (otherCoach.commissionRate / 100)) / 2;
+
+                                commissionDataCache[otherCoach.id].adjustments -= commissionValue;
+                                commissionDataCache[otherCoach.id].adjustmentDetails.push({ date: att.date, playerName: player.name, amount: -commissionValue, reason: `Clase 'Ambos' cubierta por ${substituteCoach.name}` });
+
+                                commissionDataCache[substituteCoach.id].adjustments += commissionValue;
+                                commissionDataCache[substituteCoach.id].adjustmentDetails.push({ date: att.date, playerName: player.name, amount: commissionValue, reason: `Cubrió parte de ${otherCoach.name}` });
+                            }
+                        }
+                    }
+                }
+            });
+        });
+
+        // 3. Aplicar ajustes manuales y renderizar
+        commissionsResultsContainer.innerHTML = '';
+        Object.values(commissionDataCache).forEach(data => {
+            const manualAdjs = adjustments.filter(adj => adj.fortnightKey === fortnightKey && adj.coachId == data.id);
+            data.manualAdjustmentsTotal = manualAdjs.reduce((sum, adj) => sum + adj.amount, 0);
+            data.manualAdjustmentsDetails = manualAdjs;
+            data.finalTotal = data.baseCommission + data.adjustments + data.manualAdjustmentsTotal;
+
+            let paidPackagesHtml = data.paidPackages.map(p => `<li><span>${p.playerName}</span> <span>$${p.amount.toFixed(2)}</span></li>`).join('') || '<li>Sin paquetes pagados.</li>';
+            let adjustmentsHtml = data.adjustmentDetails.sort((a,b) => new Date(a.date) - new Date(b.date)).map(adj => `<li><span>${adj.date}: ${adj.reason} con ${adj.playerName}</span> <span class="${adj.amount < 0 ? 'negative-adjustment' : 'positive-adjustment'}">${adj.amount > 0 ? '+' : ''}$${adj.amount.toFixed(2)}</span></li>`).join('') || '<li>Sin ajustes.</li>';
+            let manualAdjustmentsHtml = data.manualAdjustmentsDetails.map(adj => `<li><span>${adj.reason}</span> <span class="${adj.amount < 0 ? 'negative-adjustment' : 'positive-adjustment'}">${adj.amount > 0 ? '+' : ''}$${adj.amount.toFixed(2)}</span></li>`).join('') || '<li>Sin ajustes manuales.</li>';
+
+            commissionsResultsContainer.innerHTML += `
+                <div class="commission-card">
+                    <h3>${data.name}</h3>
+                    <h4>Ingresos por Paquetes Pagados</h4>
+                    <p class="commission-subtotal">$${data.baseCommission.toFixed(2)}</p>
+                    <ul class="commission-detail-list">${paidPackagesHtml}</ul>
+                    <h4>Ajustes por Sustituciones</h4>
+                    <p class="commission-subtotal">$${data.adjustments.toFixed(2)}</p>
+                    <ul class="commission-detail-list">${adjustmentsHtml}</ul>
+                    <h4>Ajustes de Administrador</h4>
+                    <p class="commission-subtotal">$${data.manualAdjustmentsTotal.toFixed(2)}</p>
+                    <ul class="commission-detail-list">${manualAdjustmentsHtml}</ul>
+                    <div class="commission-total">
+                        <strong>Total a Pagar:</strong>
+                        <strong class="${data.finalTotal < 0 ? 'negative-total' : ''}">$${data.finalTotal.toFixed(2)} MXN</strong>
+                    </div>
+                    <div class="commission-actions">
+                        <button class="action-button-small secondary-action adjust-commission-btn" data-coach-id="${data.id}" data-fortnight-key="${fortnightKey}">Ajustar</button>
+                        <button class="action-button-small export-report-btn" data-coach-id="${data.id}" data-fortnight-key="${fortnightKey}">Exportar JPG</button>
+                    </div>
+                </div>`;
+        });
+    }
+
+    // NUEVO: Función para manejar la exportación a JPG
+    async function handleExportReport(coachId, fortnightKey) {
+        const data = commissionDataCache[coachId];
+        if (!data) {
+            alert("No se encontraron datos de comisión para exportar. Por favor, haz clic en 'Calcular' primero.");
+            return;
+        }
+
+        const wrapper = document.getElementById('report-template-wrapper');
+        const coach = coaches.find(c => c.id == coachId);
+
+        const monthNames = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
+        const match = fortnightKey.match(/(\d{4})-(\d{2})-(\d)/);
+        const year = match[1];
+        const month = match[2];
+        const fortnightNum = match[3];
+        const periodText = `${fortnightNum === '1' ? '1ra' : '2da'} Quincena de ${monthNames[parseInt(month,10)-1]} ${year}`;
+
+        const paidPackagesHtml = data.paidPackages.map(p => `<li><span>${p.playerName}</span> <span>$${p.amount.toFixed(2)}</span></li>`).join('') || '<li>Sin ingresos base.</li>';
+        const adjustmentsHtml = data.adjustmentDetails.map(adj => `<li><div>${adj.reason} (${adj.playerName})</div> <span>${adj.amount > 0 ? '+' : ''}$${adj.amount.toFixed(2)}</span></li>`).join('') || '<li>Sin sustituciones.</li>';
+        const manualAdjustmentsHtml = data.manualAdjustmentsDetails.map(adj => `<li><span>${adj.reason}</span> <span>${adj.amount > 0 ? '+' : ''}$${adj.amount.toFixed(2)}</span></li>`).join('') || '<li>Sin ajustes.</li>';
+
+        const reportHtml = `
+            <div class="report-container">
+                <div class="report-header">
+                    <img src="Images/PadelPalmira.PNG" alt="Logo">
+                    <h2>Reporte de Comisión</h2>
+                    <p>${coach.name} - ${periodText}</p>
+                </div>
+                <div class="report-section">
+                    <h3>Ingresos Base: $${data.baseCommission.toFixed(2)}</h3>
+                    <ul>${paidPackagesHtml}</ul>
+                </div>
+                <div class="report-section">
+                    <h3>Ajustes por Sustitución: $${data.adjustments.toFixed(2)}</h3>
+                    <ul>${adjustmentsHtml}</ul>
+                </div>
+                <div class="report-section">
+                    <h3>Ajustes de Administrador: $${data.manualAdjustmentsTotal.toFixed(2)}</h3>
+                    <ul>${manualAdjustmentsHtml}</ul>
+                </div>
+                <div class="report-summary">
+                    <p>Total Clases Impartidas: ${Math.round(data.classesTaught)}</p>
+                    <p class="final-amount">$${data.finalTotal.toFixed(2)} MXN</p>
+                </div>
+            </div>`;
+
+        wrapper.innerHTML = reportHtml;
+
+        try {
+            body.classList.add('saving');
+            const canvas = await html2canvas(wrapper.querySelector('.report-container'), {
+                scale: 2, useCORS: true, backgroundColor: null,
+                onclone: (doc) => {
+                    const logo = doc.querySelector('.report-header img');
+                    if(logo) logo.src = logo.src; // Re-set src to avoid CORS issues in some browsers
+                }
+            });
+            const link = document.createElement('a');
+            link.download = `reporte_comision_${coach.name.toLowerCase().replace(' ','_')}_${year}_${month}_q${fortnightNum}.jpg`;
+            link.href = canvas.toDataURL('image/jpeg', 0.9);
+            link.click();
+        } catch (error) {
+            console.error('Error al generar la imagen:', error);
+            alert('No se pudo generar el reporte. Revisa la consola para más detalles.');
+        } finally {
+            wrapper.innerHTML = '';
+            body.classList.remove('saving');
+        }
+    }
+
+    // --- FUNCIONES DE RENDERIZADO Y LÓGICA PRINCIPAL (EXISTENTES)---
     const renderDashboard = () => {
         totalPlayersStat.textContent = players.length;
         playersToRenewList.innerHTML = '';
@@ -371,6 +648,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         players.forEach(player => {
             [...player.attendance, ...player.historicalAttendance].forEach(att => {
+                if (!att.date) return;
                 const attDate = new Date(att.date + 'T12:00:00Z');
                 if (att.status === 'presente' && attDate >= startQuincena && attDate <= endQuincena) {
                     const coachId = att.overrideCoachId || player.coachId;
@@ -544,125 +822,6 @@ document.addEventListener('DOMContentLoaded', () => {
         body.classList.toggle('locked', !isAdmin);
     };
 
-    // **FUNCIÓN DE COMISIONES MODIFICADA**
-    const renderCommissions = () => {
-        const selectedFortnight = fortnightSelector.value;
-        if (!selectedFortnight) {
-            commissionsResultsContainer.innerHTML = '<p>Por favor, selecciona un periodo.</p>';
-            return;
-        }
-
-        const [startDate, endDate] = selectedFortnight.split('_');
-
-        let commissionsData = {};
-        coaches.forEach(c => {
-            commissionsData[c.id] = {
-                name: c.name,
-                baseCommission: 0,
-                adjustments: 0,
-                paidPackages: [],
-                adjustmentDetails: []
-            };
-        });
-
-        // 1. Calcular comisiones base
-        players.forEach(player => {
-            if (player.paid && player.paymentDate >= startDate && player.paymentDate <= endDate) {
-                const price = calculatePrice(player);
-                const originalCoachId = player.coachId;
-
-                if (originalCoachId === 'Ambos') {
-                    coaches.forEach(coach => {
-                        const commission = price * (coach.commissionRate / 100) / 2;
-                        if (commissionsData[coach.id]) {
-                            commissionsData[coach.id].baseCommission += commission;
-                            commissionsData[coach.id].paidPackages.push({ playerName: player.name, amount: commission });
-                        }
-                    });
-                } else {
-                    const coach = coaches.find(c => c.id == originalCoachId);
-                    if (coach && commissionsData[coach.id]) {
-                        const commission = price * (coach.commissionRate / 100);
-                        commissionsData[coach.id].baseCommission += commission;
-                        commissionsData[coach.id].paidPackages.push({ playerName: player.name, amount: commission });
-                    }
-                }
-            }
-        });
-
-        // 2. Calcular ajustes por sustituciones
-        players.forEach(player => {
-            const allAttendance = [...player.attendance, ...player.historicalAttendance];
-            allAttendance.forEach(att => {
-                const isSubstitution = att.overrideCoachId && player.coachId !== att.overrideCoachId;
-                // **NUEVA CONDICIÓN**: La clase debe ser "efectiva" para generar ajuste
-                const classIsEffective = att.status === 'presente' || (att.status === 'falta' && isAbsenceBillable(player, att));
-
-                if (att.date >= startDate && att.date <= endDate && isSubstitution && classIsEffective) {
-                    const originalCoachId = player.coachId;
-                    const substituteCoachId = att.overrideCoachId;
-
-                    const valuePerClass = calculateCommissionPerClass(player);
-                    const originalCoach = coaches.find(c => c.id == originalCoachId);
-                    const substituteCoach = coaches.find(c => c.id == substituteCoachId);
-
-                    if (originalCoachId !== 'Ambos' && originalCoach && substituteCoach) {
-                        const commissionValue = valuePerClass * (originalCoach.commissionRate / 100);
-                        commissionsData[originalCoach.id].adjustments -= commissionValue;
-                        commissionsData[originalCoach.id].adjustmentDetails.push({ date: att.date, playerName: player.name, amount: -commissionValue, reason: `Cubierto por ${substituteCoach.name}` });
-
-                        commissionsData[substituteCoach.id].adjustments += commissionValue;
-                        commissionsData[substituteCoach.id].adjustmentDetails.push({ date: att.date, playerName: player.name, amount: commissionValue, reason: `Cubrió a ${originalCoach.name}` });
-                    }
-                    else if (originalCoachId === 'Ambos' && substituteCoach) {
-                        const otherCoach = coaches.find(c => c.id != substituteCoach.id);
-                        if(otherCoach && commissionsData[otherCoach.id]) {
-                            const commissionValue = valuePerClass * (otherCoach.commissionRate / 100) / 2;
-                            commissionsData[otherCoach.id].adjustments -= commissionValue;
-                            commissionsData[otherCoach.id].adjustmentDetails.push({ date: att.date, playerName: player.name, amount: -commissionValue, reason: `Clase 'Ambos' cubierta por ${substituteCoach.name}` });
-
-                            commissionsData[substituteCoach.id].adjustments += commissionValue;
-                            commissionsData[substituteCoach.id].adjustmentDetails.push({ date: att.date, playerName: player.name, amount: commissionValue, reason: `Cubrió parte de ${otherCoach.name}` });
-                        }
-                    }
-                }
-            });
-        });
-
-        // 3. Renderizar resultados
-        commissionsResultsContainer.innerHTML = '';
-        Object.values(commissionsData).forEach(data => {
-            const finalTotal = data.baseCommission + data.adjustments;
-            const totalClass = finalTotal < 0 ? 'negative-total' : '';
-
-            let paidPackagesHtml = data.paidPackages.map(p => `<li>${p.playerName}: $${p.amount.toFixed(2)}</li>`).join('');
-            if (!paidPackagesHtml) paidPackagesHtml = '<li>Sin paquetes pagados en este periodo.</li>';
-
-            let adjustmentsHtml = data.adjustmentDetails.sort((a,b) => new Date(a.date) - new Date(b.date)).map(adj => {
-                const amountClass = adj.amount < 0 ? 'negative-adjustment' : 'positive-adjustment';
-                const sign = adj.amount > 0 ? '+' : '';
-                return `<li>${adj.date}: ${adj.reason} con ${adj.playerName} <span class="${amountClass}">${sign}$${adj.amount.toFixed(2)}</span></li>`;
-            }).join('');
-            if (!adjustmentsHtml) adjustmentsHtml = '<li>Sin ajustes en este periodo.</li>';
-
-            commissionsResultsContainer.innerHTML += `
-                <div class="commission-card">
-                    <h3>${data.name}</h3>
-                    <h4>Ingresos por Paquetes Pagados</h4>
-                    <p class="commission-subtotal">$${data.baseCommission.toFixed(2)}</p>
-                    <ul class="commission-detail-list">${paidPackagesHtml}</ul>
-                    <h4>Ajustes por Sustituciones</h4>
-                    <p class="commission-subtotal">$${data.adjustments.toFixed(2)}</p>
-                    <ul class="commission-detail-list">${adjustmentsHtml}</ul>
-                    <div class="commission-total">
-                        <strong>Total a Pagar en Quincena:</strong>
-                        <strong class="${totalClass}">$${finalTotal.toFixed(2)} MXN</strong>
-                    </div>
-                </div>`;
-        });
-    };
-
-
     const calculatePrice = (data) => {
         try {
             if (data.mainServiceType === 'academia') return PRICES.academia[data.academyType] || 0;
@@ -774,8 +933,7 @@ document.addEventListener('DOMContentLoaded', () => {
         } else {
             coaches.push({ ...coachData, id: Date.now() });
         }
-        saveData();
-        renderCoachesList();
+        saveData().then(renderCoachesList);
         coachForm.reset();
         document.getElementById('coach-id').value = '';
     });
@@ -790,8 +948,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if(target.classList.contains('delete-coach-btn')) {
             if(confirm('¿Seguro que quieres eliminar a este entrenador?')) {
                 coaches = coaches.filter(c => c.id != id);
-                saveData();
-                renderCoachesList();
+                saveData().then(renderCoachesList);
             }
         }
     });
@@ -819,8 +976,7 @@ document.addEventListener('DOMContentLoaded', () => {
         } else {
             players.push({ ...playerData, id: Date.now(), attendance: [], historicalAttendance: [], paid: false, paymentDate: null, manualClassAdjustment: 0 });
         }
-        saveData();
-        refreshAllViews();
+        saveData().then(refreshAllViews);
         playerModal.style.display = 'none';
     });
 
@@ -835,8 +991,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (target.classList.contains('delete-btn')) {
             if (confirm('¿Estás seguro?')) {
                 players = players.filter(p => p.id != id);
-                saveData();
-                refreshAllViews();
+                saveData().then(refreshAllViews);
             }
         }
     });
@@ -877,8 +1032,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 player.paymentDate = null;
             }
 
-            saveData();
-            refreshAllViews();
+            saveData().then(refreshAllViews);
         }
     });
 
@@ -893,8 +1047,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (target.classList.contains('payment-status-btn')) {
             player.paid = !player.paid;
             player.paymentDate = player.paid ? new Date().toISOString().slice(0, 10) : null;
-            saveData();
-            refreshAllViews();
+            saveData().then(refreshAllViews);
         } else if (target.classList.contains('edit-classes-btn')) {
             openEditSummaryModal(player);
         } else if (target.classList.contains('renew-package-btn')) {
@@ -903,17 +1056,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 player.attendance = []; 
                 player.historicalAttendance = [];
-                player.manualClassAdjustment = remaining; 
+                player.manualClassAdjustment = remaining > 0 ? remaining : 0; 
                 player.paid = true;
                 player.paymentDate = new Date().toISOString().slice(0, 10);
-                saveData();
-                refreshAllViews();
+                saveData().then(refreshAllViews);
             }
         } else if (target.classList.contains('delete-summary-btn')) {
             if(confirm(`¿Seguro que quieres eliminar a ${player.name}?`)) {
                 players = players.filter(p => p.id != id);
-                saveData();
-                refreshAllViews();
+                saveData().then(refreshAllViews);
             }
         } else if (target.classList.contains('whatsapp-btn')) {
             const phone = target.dataset.phone;
@@ -945,13 +1096,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 player.paymentDate = newDateStr;
                 player.paid = true;
             }
-            saveData();
-            refreshAllViews();
+            saveData().then(refreshAllViews);
             editSummaryModal.style.display = 'none';
         }
     });
 
-    calculateCommissionsBtn.addEventListener('click', renderCommissions);
     closeChangeCoachModalBtn.addEventListener('click', () => changeCoachModal.style.display = 'none');
     changeCoachForm.addEventListener('submit', (e) => {
         e.preventDefault();
@@ -965,10 +1114,55 @@ document.addEventListener('DOMContentLoaded', () => {
         } else {
             attendanceRecord.overrideCoachId = newCoachId;
         }
-        saveData();
-        renderAttendanceList();
+        saveData().then(renderAttendanceList);
         changeCoachModal.style.display = 'none';
     });
+
+    // --- NUEVOS MANEJADORES DE EVENTOS PARA COMISIONES ---
+    calculateCommissionsBtn.addEventListener('click', calculateAndRenderCommissions);
+
+    adjustmentForm.addEventListener('submit', e => {
+        e.preventDefault();
+        const coachId = parseInt(document.getElementById('adjustment-coach-id').value, 10);
+        const fortnightKey = document.getElementById('adjustment-fortnight-key').value;
+        const amount = parseFloat(document.getElementById('adjustment-amount').value);
+        const reason = document.getElementById('adjustment-reason').value.trim();
+
+        if (isNaN(amount)) {
+            alert('Por favor, introduce un monto válido.');
+            return;
+        }
+        if (!reason) {
+            alert('Por favor, introduce una razón para el ajuste.');
+            return;
+        }
+
+        adjustments = adjustments.filter(adj => !(adj.fortnightKey === fortnightKey && adj.coachId === coachId));
+        if (amount !== 0) { // Only add adjustment if it's not zero
+            adjustments.push({ fortnightKey, coachId, amount, reason });
+        }
+
+        adjustmentModal.style.display = 'none';
+        saveData().then(calculateAndRenderCommissions);
+    });
+
+    commissionsResultsContainer.addEventListener('click', e => {
+        const button = e.target.closest('button');
+        if (!button || !isAdmin) return;
+
+        const coachId = button.dataset.coachId;
+        const fortnightKey = button.dataset.fortnightKey;
+
+        if (button.classList.contains('adjust-commission-btn')) {
+            openAdjustmentModal(coachId, fortnightKey);
+        }
+
+        if (button.classList.contains('export-report-btn')) {
+            handleExportReport(coachId, fortnightKey);
+        }
+    });
+
+    closeAdjustmentModalBtn.addEventListener('click', () => adjustmentModal.style.display = 'none');
 
 
     // --- INICIALIZACIÓN ---
@@ -986,11 +1180,13 @@ document.addEventListener('DOMContentLoaded', () => {
         daySelector.value = todayDay === 0 ? '0' : todayDay.toString();
 
         archiveOldAttendance();
+        populateDateFilters(); // MODIFICADO
 
         renderCoachesList();
-        populateFortnightSelector();
         document.querySelector('.nav-button[data-tab="inicio"]').click();
-        setInterval(() => loadData(false), 20000); 
+        setInterval(() => {
+            if (!isDataLoading) loadData(false);
+        }, 20000); 
     };
 
     loadData(true);
