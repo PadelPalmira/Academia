@@ -8,6 +8,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const addPlayerBtn = document.getElementById('add-player-btn');
     const playerForm = document.getElementById('player-form');
     const playerListContainer = document.getElementById('player-list-container');
+    const daySelector = document.getElementById('day-selector');
     const attendanceListContainer = document.getElementById('attendance-list-container');
     const summaryTableBody = document.querySelector('#summary-table tbody');
     const scheduleTimeSelect = document.getElementById('schedule-time');
@@ -22,11 +23,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const paymentFilter = document.getElementById('payment-filter');
     const serviceTypeFilter = document.getElementById('service-type-filter');
     const applySummaryFiltersBtn = document.getElementById('apply-summary-filters');
-    // NUEVO: Referencias a nuevos filtros
-    const academyFilterContainer = document.getElementById('academy-filter-container');
-    const academyTypeFilter = document.getElementById('academy-type-filter');
-    const calendarPickerInput = document.getElementById('calendar-picker');
-    let datepicker = null; // para la instancia del calendario
 
     // --- ELEMENTOS DEL MODAL (JUGADOR) ---
     const mainServiceTypeSelect = document.getElementById('main-service-type');
@@ -58,7 +54,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const editSummaryForm = document.getElementById('edit-summary-form');
     const closeEditSummaryModalBtn = editSummaryModal.querySelector('.close-button');
 
-    // --- Referencias a filtros y modales de comisión ---
+    // --- NUEVO: Referencias a filtros y modales de comisión ---
     const yearFilter = document.getElementById('year-filter');
     const monthFilter = document.getElementById('month-filter');
     const fortnightFilter = document.getElementById('fortnight-filter');
@@ -72,11 +68,11 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- ESTADO DE LA APLICACIÓN ---
     let players = [];
     let coaches = [];
-    let adjustments = [];
+    let adjustments = []; // NUEVO: Para guardar los ajustes manuales
     let isAdmin = false;
     let isDataLoading = false;
     let lastDataState = '';
-    let commissionDataCache = {};
+    let commissionDataCache = {}; // NUEVO: Cache para los datos de comisión calculados
 
     // --- CONSTANTES ---
     const PRICES = {
@@ -117,16 +113,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
             players = data.players || [];
             coaches = data.coaches || [];
-            adjustments = data.adjustments || [];
+            adjustments = data.adjustments || []; // NUEVO: Cargar ajustes
 
             players.forEach(p => {
                 p.id = parseInt(p.id, 10);
                 p.paid = String(p.paid).toLowerCase() === 'true';
-                p.manualClassAdjustment = p.manualClassAdjustment ? parseInt(p.manualClassAdjustment, 10) : 0;
-                // MODIFICADO: Cargar y parsear el total de faltas manual
-                p.manualAbsenceTotal = (p.manualAbsenceTotal !== '' && p.manualAbsenceTotal !== null && p.manualAbsenceTotal !== undefined)
-                    ? parseInt(p.manualAbsenceTotal, 10)
-                    : null;
+                p.manualClassAdjustment = parseInt(p.manualClassAdjustment, 10) || 0;
                 p.attendance = p.attendance || [];
                 p.historicalAttendance = p.historicalAttendance || [];
 
@@ -168,12 +160,14 @@ document.addEventListener('DOMContentLoaded', () => {
     async function saveData() {
         try {
             body.classList.add('saving');
+            // MODIFICADO: Enviar también los ajustes
             await fetch(SCRIPT_URL, {
                 method: 'POST',
                 mode: 'no-cors',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ players, coaches, adjustments }),
             });
+            // La recarga se activará automáticamente por el intervalo o por la siguiente acción
         } catch (error) {
             console.error("Error al guardar datos:", error);
             alert("Error al guardar los datos.");
@@ -250,6 +244,17 @@ document.addEventListener('DOMContentLoaded', () => {
         const weekNo = Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
         return [d.getUTCFullYear(), weekNo];
     };
+    const getDateForDayOfWeek = (dayOfWeek) => {
+        const today = new Date();
+        const currentDay = today.getDay();
+        const dayOffset = currentDay === 0 ? 7 : currentDay;
+        const targetDay = parseInt(dayOfWeek, 10);
+        const targetOffset = targetDay === 0 ? 7 : targetDay;
+        const dayDifference = targetOffset - dayOffset;
+        const targetDate = new Date(today);
+        targetDate.setDate(today.getDate() + dayDifference);
+        return targetDate;
+    };
     const formatSchedule = (scheduleString) => {
         if (typeof scheduleString === 'string' && /^\d{2}:\d{2}$/.test(scheduleString)) {
             const [startHourStr] = scheduleString.split(':');
@@ -289,29 +294,26 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
-    // MODIFICADO: getRemainingClasses ahora considera las faltas manuales
     const getRemainingClasses = (player) => {
         if (player.mainServiceType !== 'academia' && player.individualType !== 'paquete4') return Infinity;
 
         const allAttendance = [...player.attendance, ...player.historicalAttendance];
         const packageSize = player.individualType === 'paquete4' ? 4 : 8;
 
-        // Si hay un total manual de faltas, se usa. Si no, se calcula.
-        const totalAbsences = typeof player.manualAbsenceTotal === 'number'
-            ? player.manualAbsenceTotal
-            : allAttendance.filter(a => a.status === 'falta').length;
+        const totalAbsences = allAttendance.filter(a => a.status === 'falta').length;
 
         const deductibleAbsences = player.mainServiceType === 'academia' 
             ? Math.max(0, totalAbsences - 2) 
             : totalAbsences;
 
         const attendedClasses = allAttendance.filter(a => a.status === 'presente').length;
+
         const classesUsed = attendedClasses + deductibleAbsences;
 
         return packageSize + (player.manualClassAdjustment || 0) - classesUsed;
     };
 
-    // --- LÓGICA DE COMISIONES ---
+    // --- LÓGICA DE COMISIONES (SECCIÓN REESTRUCTURADA) ---
     const calculateCommissionPerClass = (player) => {
         const price = calculatePrice(player);
         if (price === 0) return 0;
@@ -337,6 +339,7 @@ document.addEventListener('DOMContentLoaded', () => {
         return absenceIndex >= 2;
     };
 
+    // NUEVO: Llena los filtros de Año y Mes basado en los datos existentes
     function populateDateFilters() {
         const dates = new Set();
         players.forEach(p => {
@@ -387,6 +390,7 @@ document.addEventListener('DOMContentLoaded', () => {
         updateMonthFilter();
     }
 
+    // NUEVO: Abre el modal para añadir un ajuste manual
     function openAdjustmentModal(coachId, fortnightKey) {
         adjustmentForm.reset();
         document.getElementById('adjustment-coach-id').value = coachId;
@@ -404,6 +408,7 @@ document.addEventListener('DOMContentLoaded', () => {
         adjustmentModal.style.display = 'block';
     }
 
+    // MODIFICADO: Lógica principal de cálculo y renderizado de comisiones
     function calculateAndRenderCommissions() {
         const selectedYear = yearFilter.value;
         const selectedMonth = monthFilter.value;
@@ -434,6 +439,7 @@ document.addEventListener('DOMContentLoaded', () => {
             };
         });
 
+        // 1. Calcular comisiones base e ingresos
         players.forEach(player => {
             if (player.paid && player.paymentDate >= startDate && player.paymentDate <= endDate) {
                 const price = calculatePrice(player);
@@ -458,12 +464,14 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
 
+        // 2. Calcular clases impartidas y ajustes por sustituciones
         players.forEach(player => {
             const allAttendance = [...player.attendance, ...player.historicalAttendance];
             allAttendance.forEach(att => {
                 if (att.date >= startDate && att.date <= endDate) {
                     const coachForClassId = att.overrideCoachId || player.coachId;
 
+                    // Contar clases
                     if(att.status === 'presente'){
                         if(coachForClassId === 'Ambos' && coaches.length >=2){
                             if(commissionDataCache[coaches[0].id]) commissionDataCache[coaches[0].id].classesTaught += 0.5;
@@ -473,6 +481,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         }
                     }
 
+                    // Calcular ajustes
                     const isSubstitution = att.overrideCoachId && player.coachId != att.overrideCoachId;
                     const classIsEffective = att.status === 'presente' || (att.status === 'falta' && isAbsenceBillable(player, att));
 
@@ -508,6 +517,7 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         });
 
+        // 3. Aplicar ajustes manuales y renderizar
         commissionsResultsContainer.innerHTML = '';
         Object.values(commissionDataCache).forEach(data => {
             const manualAdjs = adjustments.filter(adj => adj.fortnightKey === fortnightKey && adj.coachId == data.id);
@@ -543,6 +553,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // NUEVO: Función para manejar la exportación a JPG
     async function handleExportReport(coachId, fortnightKey) {
         const data = commissionDataCache[coachId];
         if (!data) {
@@ -597,7 +608,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 scale: 2, useCORS: true, backgroundColor: null,
                 onclone: (doc) => {
                     const logo = doc.querySelector('.report-header img');
-                    if(logo) logo.src = logo.src;
+                    if(logo) logo.src = logo.src; // Re-set src to avoid CORS issues in some browsers
                 }
             });
             const link = document.createElement('a');
@@ -606,14 +617,14 @@ document.addEventListener('DOMContentLoaded', () => {
             link.click();
         } catch (error) {
             console.error('Error al generar la imagen:', error);
-            alert('No se pudo generar el reporte.');
+            alert('No se pudo generar el reporte. Revisa la consola para más detalles.');
         } finally {
             wrapper.innerHTML = '';
             body.classList.remove('saving');
         }
     }
 
-    // --- FUNCIONES DE RENDERIZADO Y LÓGICA PRINCIPAL ---
+    // --- FUNCIONES DE RENDERIZADO Y LÓGICA PRINCIPAL (EXISTENTES)---
     const renderDashboard = () => {
         totalPlayersStat.textContent = players.length;
         playersToRenewList.innerHTML = '';
@@ -699,19 +710,12 @@ document.addEventListener('DOMContentLoaded', () => {
         body.classList.toggle('locked', !isAdmin);
     };
 
-    // MODIFICADO: renderAttendanceList ahora usa el calendario
     const renderAttendanceList = () => {
-        if (!datepicker) return;
-        const selectedDate = datepicker.getDate('yyyy-mm-dd');
-        if (!selectedDate) {
-            attendanceListContainer.innerHTML = '<h3>Selecciona una fecha del calendario.</h3>';
-            return;
-        }
+        const selectedDay = daySelector.value;
+        const selectedDate = getDateForDayOfWeek(selectedDay);
+        const selectedDateStr = selectedDate.toISOString().slice(0, 10);
 
-        const dayOfWeek = (datepicker.getDate().getDay() + 6) % 7 + 1; // Hacer Lunes = 1, Domingo = 7, luego ajustar a nuestro sistema
-        const dayOfWeekString = (datepicker.getDate().getDay()).toString();
-
-        const playersForDay = players.filter(p => (p.classDays || []).includes(dayOfWeekString));
+        const playersForDay = players.filter(p => (p.classDays || []).includes(selectedDay));
         attendanceListContainer.innerHTML = '';
 
         if (playersForDay.length === 0) {
@@ -725,14 +729,14 @@ document.addEventListener('DOMContentLoaded', () => {
             return acc;
         }, {});
 
-        const formattedDate = datepicker.getDate().toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' });
-
         Object.keys(groupedBySchedule).sort().forEach(schedule => {
             const scheduleContainer = document.createElement('div');
+            const formattedDate = selectedDate.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' });
             scheduleContainer.innerHTML = `<h3>Horario ${formatSchedule(schedule)} <span class="attendance-date">(${formattedDate})</span></h3>`;
 
             groupedBySchedule[schedule].sort((a,b) => a.name.localeCompare(b.name)).forEach(player => {
-                const attendanceRecord = player.attendance.find(a => a.date === selectedDate);
+                const attendanceRecord = player.attendance.find(a => a.date === selectedDateStr);
+
                 const coachForThisClassId = attendanceRecord?.overrideCoachId || player.coachId;
                 let coachName = "No asignado";
                 if (coachForThisClassId === 'Ambos') coachName = 'Ambos';
@@ -743,6 +747,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 const card = document.createElement('div');
                 card.className = 'player-attendance-card';
+
                 card.innerHTML = `
                     <div class="player-attendance-info">
                         <strong>${player.name}</strong>
@@ -751,7 +756,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     <div class="attendance-actions">
                         <button class="action-button-small present-btn ${attendanceRecord?.status === 'presente' ? 'active' : ''}" data-player-id="${player.id}" data-status="presente">Presente</button>
                         <button class="action-button-small absent-btn ${attendanceRecord?.status === 'falta' ? 'active' : ''}" data-player-id="${player.id}" data-status="falta">Falta</button>
-                        <button class="action-button-small edit-class-coach-btn admin-feature" data-player-id="${player.id}" data-class-date="${selectedDate}" title="Cambiar entrenador">${ICONS.change}</button>
+                        <button class="action-button-small edit-class-coach-btn admin-feature" data-player-id="${player.id}" data-class-date="${selectedDateStr}" title="Cambiar entrenador">${ICONS.change}</button>
                     </div>
                 `;
                 scheduleContainer.appendChild(card);
@@ -761,56 +766,35 @@ document.addEventListener('DOMContentLoaded', () => {
         body.classList.toggle('locked', !isAdmin);
     };
 
-    // MODIFICADO: renderSummaryTable ahora tiene sub-filtros y nuevo orden
     const renderSummaryTable = () => {
         summaryTableBody.innerHTML = '';
         let filteredPlayers = [...players];
 
         const serviceType = serviceTypeFilter.value;
-        const acadType = academyTypeFilter.value;
-        const payment = paymentFilter.value;
-
         if (serviceType !== 'todos') {
             filteredPlayers = filteredPlayers.filter(p => p.mainServiceType === serviceType);
-            if (serviceType === 'academia' && acadType !== 'todos') {
-                filteredPlayers = filteredPlayers.filter(p => p.academyType === acadType);
-            }
         }
+        const payment = paymentFilter.value;
         if (payment !== 'todos') {
             filteredPlayers = filteredPlayers.filter(p => (p.paid && payment === 'pagado') || (!p.paid && payment === 'pendiente'));
         }
-
-        filteredPlayers.sort((a, b) => {
-            if (a.mainServiceType !== b.mainServiceType) {
-                return a.mainServiceType === 'academia' ? -1 : 1;
-            }
-            const scheduleA = a.schedule || '99:99';
-            const scheduleB = b.schedule || '99:99';
-            if (scheduleA !== scheduleB) {
-                return scheduleA.localeCompare(scheduleB);
-            }
-            return a.name.localeCompare(b.name);
-        });
 
         if (filteredPlayers.length === 0) {
             summaryTableBody.innerHTML = '<tr><td colspan="4" style="text-align:center;">No hay jugadores que coincidan.</td></tr>';
             return;
         }
 
-        filteredPlayers.forEach(player => {
+        filteredPlayers.sort((a,b) => a.name.localeCompare(b.name)).forEach(player => {
             const remaining = getRemainingClasses(player);
             const row = document.createElement('tr');
             if ((player.mainServiceType === 'academia' || player.individualType === 'paquete4') && remaining <= 2) {
                 row.classList.add('low-classes');
             }
 
-            const calculatedAbsences = [...player.attendance, ...player.historicalAttendance].filter(a => a.status === 'falta').length;
-            const totalAbsences = typeof player.manualAbsenceTotal === 'number' ? player.manualAbsenceTotal : calculatedAbsences;
-
+            const totalAbsences = [...player.attendance, ...player.historicalAttendance].filter(a => a.status === 'falta').length;
             let detailsText = `Clase Individual (Única)`;
             if (player.mainServiceType === 'academia' || player.individualType === 'paquete4') {
                  detailsText = `Clases: ${remaining} | Faltas: ${totalAbsences}`;
-                 if (typeof player.manualAbsenceTotal === 'number') detailsText += ' (M)';
             }
 
             const paymentDate = player.paid && player.paymentDate ? new Date(String(player.paymentDate).slice(0,10) + "T12:00:00Z").toLocaleDateString('es-ES') : '';
@@ -874,7 +858,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const activeTab = document.querySelector('.nav-button.active')?.dataset.tab;
         if(activeTab === 'inicio') renderDashboard();
         if(activeTab === 'registro') renderPlayersList();
-        if(activeTab === 'asistencia' && datepicker) renderAttendanceList();
+        if(activeTab === 'asistencia') renderAttendanceList();
         if(activeTab === 'resumen') renderSummaryTable();
     };
 
@@ -917,22 +901,11 @@ document.addEventListener('DOMContentLoaded', () => {
         handleModalForm();
         playerModal.style.display = 'block';
     };
-
-    // MODIFICADO: openEditSummaryModal ahora maneja las faltas manuales
     const openEditSummaryModal = (player) => {
         document.getElementById('edit-summary-player-id').value = player.id;
         document.getElementById('edit-summary-title').textContent = `Editar Paquete de ${player.name}`;
         document.getElementById('edit-remaining-classes').value = getRemainingClasses(player);
         document.getElementById('edit-payment-date').value = player.paymentDate || new Date().toISOString().slice(0, 10);
-
-        const absenceInput = document.getElementById('edit-total-absences');
-        if (typeof player.manualAbsenceTotal === 'number') {
-            absenceInput.value = player.manualAbsenceTotal;
-        } else {
-            const calculatedAbsences = [...player.attendance, ...player.historicalAttendance].filter(a => a.status === 'falta').length;
-            absenceInput.value = calculatedAbsences;
-        }
-
         editSummaryModal.style.display = 'block';
     };
 
@@ -943,16 +916,7 @@ document.addEventListener('DOMContentLoaded', () => {
     mainServiceTypeSelect.addEventListener('change', handleModalForm);
     academyTypeSelect.addEventListener('change', handleAcademyType);
     adminLockBtn.addEventListener('click', handleAdminLock);
-
-    // MODIFICADO: listeners para los filtros de resumen
     applySummaryFiltersBtn.addEventListener('click', renderSummaryTable);
-    serviceTypeFilter.addEventListener('change', () => {
-        academyFilterContainer.classList.toggle('hidden', serviceTypeFilter.value !== 'academia');
-        renderSummaryTable();
-    });
-    academyTypeFilter.addEventListener('change', renderSummaryTable);
-    paymentFilter.addEventListener('change', renderSummaryTable);
-
     manageCoachesBtn.addEventListener('click', () => openCoachModal());
     closeCoachModalBtn.addEventListener('click', () => coachModal.style.display = 'none');
 
@@ -965,13 +929,13 @@ document.addEventListener('DOMContentLoaded', () => {
         };
         if(id) {
             const index = coaches.findIndex(c => c.id == id);
-            if (index > -1) coaches[index] = { ...coaches[index], ...coachData };
+            coaches[index] = { ...coaches[index], ...coachData };
         } else {
             coaches.push({ ...coachData, id: Date.now() });
         }
+        saveData().then(renderCoachesList);
         coachForm.reset();
         document.getElementById('coach-id').value = '';
-        saveData().then(renderCoachesList);
     });
 
     coachListContainer.addEventListener('click', (e) => {
@@ -993,7 +957,7 @@ document.addEventListener('DOMContentLoaded', () => {
         e.preventDefault();
         const id = document.getElementById('player-id').value;
         const playerData = {
-            name: document.getElementById('player-name').value.trim(),
+            name: document.getElementById('player-name').value,
             phone: document.getElementById('player-phone').value,
             mainServiceType: document.getElementById('main-service-type').value,
             academyType: document.getElementById('academy-type').value,
@@ -1007,16 +971,13 @@ document.addEventListener('DOMContentLoaded', () => {
         };
         if (id) {
             const playerIndex = players.findIndex(p => p.id == id);
-            if (playerIndex > -1) {
-                if (playerData.schedule.startsWith("''")) playerData.schedule = playerData.schedule.substring(1);
-                // Mantenemos los datos de asistencia y otros que no están en el form
-                players[playerIndex] = { ...players[playerIndex], ...playerData };
-            }
+            if (playerData.schedule.startsWith("''")) playerData.schedule = playerData.schedule.substring(1);
+            players[playerIndex] = { ...players[playerIndex], ...playerData };
         } else {
-            players.push({ ...playerData, id: Date.now(), attendance: [], historicalAttendance: [], paid: false, paymentDate: null, manualClassAdjustment: 0, manualAbsenceTotal: null });
+            players.push({ ...playerData, id: Date.now(), attendance: [], historicalAttendance: [], paid: false, paymentDate: null, manualClassAdjustment: 0 });
         }
-        playerModal.style.display = 'none';
         saveData().then(refreshAllViews);
+        playerModal.style.display = 'none';
     });
 
     playerListContainer.addEventListener('click', (e) => {
@@ -1035,6 +996,8 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
+    daySelector.addEventListener('change', renderAttendanceList);
+
     attendanceListContainer.addEventListener('click', (e) => {
         if (!isAdmin) return;
         const button = e.target.closest('button');
@@ -1051,7 +1014,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (button.classList.contains('present-btn') || button.classList.contains('absent-btn')) {
             const newStatus = button.dataset.status;
             const player = players.find(p => p.id == playerId);
-            const selectedDateStr = datepicker.getDate('yyyy-mm-dd');
+            const selectedDateStr = getDateForDayOfWeek(daySelector.value).toISOString().slice(0, 10);
             let attendanceRecord = player.attendance.find(a => a.date === selectedDateStr);
 
             if (attendanceRecord) {
@@ -1068,6 +1031,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 player.paid = false;
                 player.paymentDate = null;
             }
+
             saveData().then(refreshAllViews);
         }
     });
@@ -1089,10 +1053,10 @@ document.addEventListener('DOMContentLoaded', () => {
         } else if (target.classList.contains('renew-package-btn')) {
             if (confirm(`¿Seguro que quieres renovar el paquete para ${player.name}? Se reiniciarán sus clases y faltas.`)) {
                 const remaining = getRemainingClasses(player);
+
                 player.attendance = []; 
                 player.historicalAttendance = [];
-                player.manualClassAdjustment = remaining > 0 ? remaining : 0;
-                player.manualAbsenceTotal = null; // Reset manual absences on renewal
+                player.manualClassAdjustment = remaining > 0 ? remaining : 0; 
                 player.paid = true;
                 player.paymentDate = new Date().toISOString().slice(0, 10);
                 saveData().then(refreshAllViews);
@@ -1110,40 +1074,28 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // MODIFICADO: editSummaryForm ahora guarda las faltas manuales
     editSummaryForm.addEventListener('submit', (e) => {
         e.preventDefault();
         const playerId = document.getElementById('edit-summary-player-id').value;
         const player = players.find(p => p.id == playerId);
         if (player) {
-            const newRemainingClassesStr = document.getElementById('edit-remaining-classes').value;
-            const newAbsencesStr = document.getElementById('edit-total-absences').value;
+            const newAmount = parseInt(document.getElementById('edit-remaining-classes').value, 10);
             const newDateStr = document.getElementById('edit-payment-date').value;
 
-            // Ajuste de clases restantes
-            const newAmount = parseInt(newRemainingClassesStr, 10);
             if (!isNaN(newAmount)) {
                 const totalAttendance = [...player.attendance, ...player.historicalAttendance];
                 const packageSize = player.individualType === 'paquete4' ? 4 : 8;
-                const currentAbsences = typeof player.manualAbsenceTotal === 'number' ? player.manualAbsenceTotal : totalAttendance.filter(a => a.status === 'falta').length;
-                const deductibleAbsences = player.mainServiceType === 'academia' ? Math.max(0, currentAbsences - 2) : currentAbsences;
+                const totalAbsences = totalAttendance.filter(a => a.status === 'falta').length;
+                const deductibleAbsences = player.mainServiceType === 'academia' ? Math.max(0, totalAbsences - 2) : totalAbsences;
                 const attendedClasses = totalAttendance.filter(a => a.status === 'presente').length;
                 const classesUsed = attendedClasses + deductibleAbsences;
+
                 player.manualClassAdjustment = newAmount - (packageSize - classesUsed);
             }
-
-            // Ajuste de faltas
-            if (newAbsencesStr === '' || newAbsencesStr === null) {
-                player.manualAbsenceTotal = null; // Revertir a cálculo automático
-            } else {
-                player.manualAbsenceTotal = parseInt(newAbsencesStr, 10);
-            }
-
             if (newDateStr) {
                 player.paymentDate = newDateStr;
                 player.paid = true;
             }
-
             saveData().then(refreshAllViews);
             editSummaryModal.style.display = 'none';
         }
@@ -1166,7 +1118,7 @@ document.addEventListener('DOMContentLoaded', () => {
         changeCoachModal.style.display = 'none';
     });
 
-    // --- MANEJADORES DE EVENTOS PARA COMISIONES ---
+    // --- NUEVOS MANEJADORES DE EVENTOS PARA COMISIONES ---
     calculateCommissionsBtn.addEventListener('click', calculateAndRenderCommissions);
 
     adjustmentForm.addEventListener('submit', e => {
@@ -1186,7 +1138,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         adjustments = adjustments.filter(adj => !(adj.fortnightKey === fortnightKey && adj.coachId === coachId));
-        if (amount !== 0) {
+        if (amount !== 0) { // Only add adjustment if it's not zero
             adjustments.push({ fortnightKey, coachId, amount, reason });
         }
 
@@ -1224,20 +1176,11 @@ document.addEventListener('DOMContentLoaded', () => {
         for (let i = 8; i <= 23; i++) {
             scheduleTimeSelect.add(new Option(`${String(i).padStart(2, '0')}:00`, `${String(i).padStart(2, '0')}:00`));
         }
-
-        // NUEVO: Inicialización del calendario
-        const { Datepicker } = window.datepicker;
-        datepicker = new Datepicker(calendarPickerInput, {
-            language: 'es',
-            autohide: true,
-            todayHighlight: true,
-            format: 'yyyy-mm-dd', // Usar formato estándar para fácil manejo
-        });
-        datepicker.setDate(new Date());
-        calendarPickerInput.addEventListener('changeDate', renderAttendanceList);
+        let todayDay = new Date().getDay();
+        daySelector.value = todayDay === 0 ? '0' : todayDay.toString();
 
         archiveOldAttendance();
-        populateDateFilters();
+        populateDateFilters(); // MODIFICADO
 
         renderCoachesList();
         document.querySelector('.nav-button[data-tab="inicio"]').click();

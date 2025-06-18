@@ -210,17 +210,10 @@ body.saving::after {
     border-radius: var(--border-radius-medium); font-size: 1em; background-color: #fdfdfd; 
     font-family: var(--font-family-original);
 }
-#calendar-picker.styled-input {
-    margin-bottom: 0; /* Ajuste específico para el calendario */
-}
 .styled-input:focus, .styled-select:focus { outline: none; border-color: var(--palmira-cyan); box-shadow: 0 0 0 4px rgba(0, 242, 234, 0.25); }
 .filters .styled-select, .filters .styled-input, .filters .action-button { margin-bottom: 0; }
 .filters.date-filters .styled-select { flex-grow: 1; min-width: 120px; }
 .filters .action-button { flex-grow: 0; }
-/* NUEVO: Estilo para el contenedor del sub-filtro de academias */
-#academy-filter-container {
-    flex-grow: 1;
-}
 
 /* SECCIÓN DE ASISTENCIA */
 .player-attendance-card {
@@ -317,7 +310,7 @@ body.locked .attendance-actions button,
 body.locked .edit-class-coach-btn,
 body.locked .commission-actions button { pointer-events: none; opacity: 0.6; }
 
-/* REPORTE JPG */
+/* NUEVO: Estilos para el contenedor de la imagen de reporte */
 #report-template-wrapper {
     position: absolute;
     left: -9999px; /* Moverlo fuera de la pantalla */

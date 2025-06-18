@@ -6,7 +6,6 @@
     <title>Gestión de Academia de Pádel</title>
     <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/vanillajs-datepicker@1.3.4/dist/css/datepicker.min.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -84,10 +83,18 @@
 
             <div id="asistencia-tab" class="tab-content">
                 <div class="content-card">
-                    <h2><i class="fa-solid fa-calendar-day"></i> Seguimiento de Asistencias</h2>
+                    <h2><i class="fa-solid fa-calendar-day"></i> Seguimiento de Asistencias (Semana Actual)</h2>
                     <div class="filters">
-                        <label for="calendar-picker">Selecciona un día:</label>
-                        <input type="text" id="calendar-picker" class="styled-input" placeholder="Elige una fecha...">
+                        <label for="day-selector">Selecciona un día:</label>
+                        <select id="day-selector" class="styled-select">
+                            <option value="1">Lunes</option>
+                            <option value="2">Martes</option>
+                            <option value="3">Miércoles</option>
+                            <option value="4">Jueves</option>
+                            <option value="5">Viernes</option>
+                            <option value="6">Sábado</option>
+                            <option value="0">Domingo</option>
+                        </select>
                     </div>
                     <div id="attendance-list-container"></div>
                 </div>
@@ -102,13 +109,6 @@
                             <option value="academia">Academias</option>
                             <option value="individual">Clases Individuales</option>
                         </select>
-                        <div id="academy-filter-container" class="hidden">
-                           <select id="academy-type-filter" class="styled-select">
-                                <option value="todos">Niños y Adultos</option>
-                                <option value="ninos">Niños</option>
-                                <option value="adultos">Adultos</option>
-                           </select>
-                        </div>
                         <select id="payment-filter" class="styled-select">
                             <option value="todos">Todos los Pagos</option>
                             <option value="pagado">Pagado</option>
@@ -139,13 +139,16 @@
                     <div class="filters date-filters">
                         <label for="year-filter">Año:</label>
                         <select id="year-filter" class="styled-select"></select>
+                        
                         <label for="month-filter">Mes:</label>
                         <select id="month-filter" class="styled-select"></select>
+                        
                         <label for="fortnight-filter">Quincena:</label>
                         <select id="fortnight-filter" class="styled-select">
                             <option value="1">1ra Quincena (1-15)</option>
                             <option value="2">2da Quincena (16-Fin)</option>
                         </select>
+                        
                         <button id="calculate-commissions-btn" class="action-button secondary-action">Calcular</button>
                     </div>
                     <div id="commissions-results-container"></div>
@@ -268,10 +271,7 @@
                 <input type="hidden" id="edit-summary-player-id">
                 
                 <label for="edit-remaining-classes">Clases Restantes:</label>
-                <input type="number" id="edit-remaining-classes" class="styled-input" required>
-
-                <label for="edit-total-absences">Faltas Totales (Manual):</label>
-                <input type="number" id="edit-total-absences" class="styled-input" min="0" placeholder="Dejar vacío para cálculo automático">
+                <input type="number" id="edit-remaining-classes" class="styled-input" required min="0">
                 
                 <label for="edit-payment-date">Fecha de Pago del Paquete:</label>
                 <input type="date" id="edit-payment-date" class="styled-input" required>
@@ -300,9 +300,10 @@
         </div>
     </div>
 
-    <div id="report-template-wrapper"></div>
+    <div id="report-template-wrapper">
+        </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/vanillajs-datepicker@1.3.4/dist/js/datepicker-full.min.js"></script>
+
     <script src="script.js"></script>
 </body>
 </html>
