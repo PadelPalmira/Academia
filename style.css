@@ -154,7 +154,6 @@ body.saving::after {
     justify-content: space-between;
 }
 
-
 .player-list { list-style: none; padding: 0; }
 .player-list li {
     padding: 12px 18px; border: 1px solid var(--palmira-medium-gray);
@@ -210,6 +209,12 @@ body.saving::after {
     border-radius: var(--border-radius-medium); font-size: 1em; background-color: #fdfdfd; 
     font-family: var(--font-family-original);
 }
+/* NUEVO: Estilo para que el input del calendario parezca un control de formulario */
+#date-picker-input {
+    flex-grow: 1;
+    margin-bottom: 0;
+    cursor: pointer;
+}
 .styled-input:focus, .styled-select:focus { outline: none; border-color: var(--palmira-cyan); box-shadow: 0 0 0 4px rgba(0, 242, 234, 0.25); }
 .filters .styled-select, .filters .styled-input, .filters .action-button { margin-bottom: 0; }
 .filters.date-filters .styled-select { flex-grow: 1; min-width: 120px; }
@@ -233,6 +238,7 @@ body.saving::after {
 .attendance-actions .action-button-small.active.absent-btn { background-color: var(--functional-red); color: white; border-color: #c9302c; }
 .attendance-actions .edit-class-coach-btn { background: transparent; padding: 5px; border: none; }
 .attendance-actions .edit-class-coach-btn:hover { background: rgba(0,0,0,0.1); }
+.attendance-date { font-size: 0.8em; color: #555; font-weight: normal; }
 
 /* Modal */
 .modal {
@@ -251,12 +257,16 @@ body.saving::after {
 }
 .modal label { display: block; margin-bottom: 8px; margin-top: 16px; font-weight: 600; color: #555; }
 .form-step { border-top: 1px solid var(--palmira-light-gray-bg); padding-top: 15px; margin-top: 15px; }
-.days-checkbox-container {
+.days-checkbox-container, .coach-checkbox-container {
     display: flex; flex-wrap: wrap; gap: 15px; background-color: var(--palmira-light-gray-bg);
     padding: 15px; border-radius: var(--border-radius-medium); margin-bottom: 20px;
 }
-.days-checkbox-container label { display: flex; align-items: center; gap: 5px; margin: 0; font-weight: 500; }
-.days-checkbox-container input[type="checkbox"] { width: 20px; height: 20px; accent-color: var(--palmira-pink); }
+.days-checkbox-container label, .coach-checkbox-container label { 
+    display: flex; align-items: center; gap: 5px; margin: 0; font-weight: 500; 
+}
+.days-checkbox-container input[type="checkbox"], .coach-checkbox-container input[type="checkbox"] { 
+    width: 20px; height: 20px; accent-color: var(--palmira-pink); 
+}
 .price-summary-card {
     background-color: var(--palmira-cyan-light); border: 1px solid var(--palmira-cyan);
     border-radius: var(--border-radius-medium); padding: 15px; margin-top: 20px;
@@ -301,7 +311,6 @@ hr.modal-divider { margin: 25px 0; border: 0; border-top: 1px solid var(--palmir
     gap: 10px;
     justify-content: flex-end;
 }
-
 
 /* Admin Lock Styles */
 body.locked .admin-feature { display: none !important; }
@@ -377,7 +386,6 @@ body.locked .commission-actions button { pointer-events: none; opacity: 0.6; }
 .report-section ul::-webkit-scrollbar { width: 5px; }
 .report-section ul::-webkit-scrollbar-thumb { background: var(--palmira-cyan); border-radius: 5px; }
 
-
 .report-section li {
     display: flex;
     justify-content: space-between;
@@ -393,7 +401,6 @@ body.locked .commission-actions button { pointer-events: none; opacity: 0.6; }
     margin-top: -5px;
     margin-bottom: 5px;
 }
-
 
 .report-summary {
     margin-top: auto; /* Empuja el resumen al final */
@@ -415,7 +422,6 @@ body.locked .commission-actions button { pointer-events: none; opacity: 0.6; }
     font-weight: 700;
     margin-top: 5px;
 }
-
 
 /* Responsividad */
 @media (max-width: 768px) {

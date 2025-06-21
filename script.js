@@ -8,7 +8,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const addPlayerBtn = document.getElementById('add-player-btn');
     const playerForm = document.getElementById('player-form');
     const playerListContainer = document.getElementById('player-list-container');
-    const daySelector = document.getElementById('day-selector');
+    // MODIFICADO: Se cambia la referencia del selector de día al nuevo input de calendario
+    const datePickerInput = document.getElementById('date-picker-input');
     const attendanceListContainer = document.getElementById('attendance-list-container');
     const summaryTableBody = document.querySelector('#summary-table tbody');
     const scheduleTimeSelect = document.getElementById('schedule-time');
@@ -34,7 +35,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const levelField = document.getElementById('level-field');
     const priceSummaryCard = document.getElementById('price-summary');
     const totalCostDisplay = document.getElementById('total-cost-display');
-    const coachSelect = document.getElementById('coach-select');
+    // MODIFICADO: Referencia al nuevo contenedor de checkboxes para entrenadores
+    const coachCheckboxContainer = document.getElementById('coach-checkbox-container');
 
     // --- ELEMENTOS DEL MODAL (ENTRENADOR) ---
     const coachModal = document.getElementById('coach-modal');
@@ -54,7 +56,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const editSummaryForm = document.getElementById('edit-summary-form');
     const closeEditSummaryModalBtn = editSummaryModal.querySelector('.close-button');
 
-    // --- NUEVO: Referencias a filtros y modales de comisión ---
+    // --- Referencias a filtros y modales de comisión ---
     const yearFilter = document.getElementById('year-filter');
     const monthFilter = document.getElementById('month-filter');
     const fortnightFilter = document.getElementById('fortnight-filter');
@@ -68,11 +70,13 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- ESTADO DE LA APLICACIÓN ---
     let players = [];
     let coaches = [];
-    let adjustments = []; // NUEVO: Para guardar los ajustes manuales
+    let adjustments = []; 
     let isAdmin = false;
     let isDataLoading = false;
     let lastDataState = '';
-    let commissionDataCache = {}; // NUEVO: Cache para los datos de comisión calculados
+    let commissionDataCache = {}; 
+    // NUEVO: Instancia del calendario para acceso global
+    let datePickerInstance = null;
 
     // --- CONSTANTES ---
     const PRICES = {
@@ -113,7 +117,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             players = data.players || [];
             coaches = data.coaches || [];
-            adjustments = data.adjustments || []; // NUEVO: Cargar ajustes
+            adjustments = data.adjustments || []; 
 
             players.forEach(p => {
                 p.id = parseInt(p.id, 10);
@@ -121,6 +125,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 p.manualClassAdjustment = parseInt(p.manualClassAdjustment, 10) || 0;
                 p.attendance = p.attendance || [];
                 p.historicalAttendance = p.historicalAttendance || [];
+                // MODIFICADO: Asegurarse que coachId sea un array para jugadores existentes con ID simple.
+                if (p.coachId && !Array.isArray(p.coachId)) {
+                    p.coachId = [String(p.coachId)];
+                } else if (!p.coachId) {
+                    p.coachId = [];
+                }
 
                 if (p.schedule && typeof p.schedule === 'string' && p.schedule.startsWith("'")) {
                     p.schedule = p.schedule.substring(1);
@@ -157,22 +167,32 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    // MODIFICADO: saveData ahora es asíncrona y gestiona la respuesta para recarga inmediata
     async function saveData() {
+        body.classList.add('saving');
         try {
-            body.classList.add('saving');
-            // MODIFICADO: Enviar también los ajustes
-            await fetch(SCRIPT_URL, {
+            const response = await fetch(SCRIPT_URL, {
                 method: 'POST',
-                mode: 'no-cors',
+                // Removido 'no-cors' para poder leer la respuesta del servidor
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ players, coaches, adjustments }),
             });
-            // La recarga se activará automáticamente por el intervalo o por la siguiente acción
+
+            if (!response.ok) {
+                throw new Error(`Error del servidor: ${response.statusText}`);
+            }
+
+            const result = await response.json();
+            if (result.status !== 'success') {
+                throw new Error(`Error al guardar datos: ${result.message}`);
+            }
+            console.log("Datos guardados con éxito.");
+            // La recarga de datos se hará en la función que llama a saveData
         } catch (error) {
             console.error("Error al guardar datos:", error);
-            alert("Error al guardar los datos.");
+            alert("Error al guardar los datos. Revisa la consola para más detalles.");
         } finally {
-            setTimeout(() => body.classList.remove('saving'), 1500);
+            body.classList.remove('saving');
         }
     }
 
@@ -204,18 +224,33 @@ document.addEventListener('DOMContentLoaded', () => {
             li.innerHTML = `<span>${coach.name} (${coach.commissionRate}%)</span><div class="coach-actions"><button class="action-button-small secondary-action edit-coach-btn" data-id="${coach.id}">${ICONS.edit}</button><button class="action-button-small danger-action delete-coach-btn" data-id="${coach.id}">${ICONS.delete}</button></div>`;
             coachListContainer.appendChild(li);
         });
-        populateCoachSelect();
-        populateCoachSelect(coachOverrideSelect);
+        // MODIFICADO: Llamadas a las nuevas funciones de población
+        populateCoachCheckboxes();
+        populateCoachOverrideSelect();
     };
-    const populateCoachSelect = (selectElement = coachSelect) => {
-        const currentCoachValue = selectElement.value;
-        selectElement.innerHTML = '<option value="" disabled>Selecciona...</option>';
+
+    // NUEVO: Función para poblar las checkboxes de entrenadores en el modal de jugador
+    const populateCoachCheckboxes = () => {
+        coachCheckboxContainer.innerHTML = '';
         coaches.forEach(coach => {
-            selectElement.innerHTML += `<option value="${coach.id}">${coach.name}</option>`;
+            const coachId = coach.id;
+            const coachName = coach.name;
+            const label = document.createElement('label');
+            label.innerHTML = `<input type="checkbox" name="coach" value="${coachId}"> ${coachName}`;
+            coachCheckboxContainer.appendChild(label);
         });
-        selectElement.innerHTML += `<option value="Ambos">Ambos</option>`;
-        selectElement.value = currentCoachValue;
     };
+
+    // MODIFICADO: El antiguo populateCoachSelect ahora es para el modal de cambio de entrenador
+    const populateCoachOverrideSelect = () => {
+        const currentCoachValue = coachOverrideSelect.value;
+        coachOverrideSelect.innerHTML = '<option value="" disabled>Selecciona...</option>';
+        coaches.forEach(coach => {
+            coachOverrideSelect.innerHTML += `<option value="${coach.id}">${coach.name}</option>`;
+        });
+        coachOverrideSelect.value = currentCoachValue;
+    };
+
     const openCoachModal = (coach = null) => {
         coachForm.reset();
         coachForm.querySelector('#coach-id').value = '';
@@ -226,13 +261,16 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         coachModal.style.display = 'block';
     };
+
     const openChangeCoachModal = (playerId, classDate) => {
         const player = players.find(p => p.id == playerId);
         const attendanceRecord = player.attendance.find(a => a.date === classDate);
         changeCoachForm.querySelector('#change-coach-player-id').value = playerId;
         changeCoachForm.querySelector('#change-coach-class-date').value = classDate;
-        populateCoachSelect(coachOverrideSelect);
-        coachOverrideSelect.value = attendanceRecord?.overrideCoachId || player.coachId;
+        populateCoachOverrideSelect();
+        // MODIFICADO: La lógica para obtener el coachId por defecto
+        const defaultCoach = attendanceRecord?.overrideCoachId || (player.coachId.length > 0 ? player.coachId[0] : '');
+        coachOverrideSelect.value = defaultCoach;
         changeCoachModal.style.display = 'block';
     };
 
@@ -244,17 +282,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const weekNo = Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
         return [d.getUTCFullYear(), weekNo];
     };
-    const getDateForDayOfWeek = (dayOfWeek) => {
-        const today = new Date();
-        const currentDay = today.getDay();
-        const dayOffset = currentDay === 0 ? 7 : currentDay;
-        const targetDay = parseInt(dayOfWeek, 10);
-        const targetOffset = targetDay === 0 ? 7 : targetDay;
-        const dayDifference = targetOffset - dayOffset;
-        const targetDate = new Date(today);
-        targetDate.setDate(today.getDate() + dayDifference);
-        return targetDate;
-    };
+
     const formatSchedule = (scheduleString) => {
         if (typeof scheduleString === 'string' && /^\d{2}:\d{2}$/.test(scheduleString)) {
             const [startHourStr] = scheduleString.split(':');
@@ -290,7 +318,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
         if (needsSave) {
             console.log("Asistencias de semanas pasadas archivadas.");
-            saveData();
+            saveData().then(() => loadData(false)); // Guardar y recargar
         }
     };
 
@@ -339,7 +367,6 @@ document.addEventListener('DOMContentLoaded', () => {
         return absenceIndex >= 2;
     };
 
-    // NUEVO: Llena los filtros de Año y Mes basado en los datos existentes
     function populateDateFilters() {
         const dates = new Set();
         players.forEach(p => {
@@ -390,7 +417,6 @@ document.addEventListener('DOMContentLoaded', () => {
         updateMonthFilter();
     }
 
-    // NUEVO: Abre el modal para añadir un ajuste manual
     function openAdjustmentModal(coachId, fortnightKey) {
         adjustmentForm.reset();
         document.getElementById('adjustment-coach-id').value = coachId;
@@ -408,7 +434,7 @@ document.addEventListener('DOMContentLoaded', () => {
         adjustmentModal.style.display = 'block';
     }
 
-    // MODIFICADO: Lógica principal de cálculo y renderizado de comisiones
+    // MODIFICADO: Lógica de comisiones adaptada para selección múltiple de entrenadores
     function calculateAndRenderCommissions() {
         const selectedYear = yearFilter.value;
         const selectedMonth = monthFilter.value;
@@ -439,78 +465,73 @@ document.addEventListener('DOMContentLoaded', () => {
             };
         });
 
+        // Jugadores activos son los únicos que generan comisiones
+        const activePlayers = players.filter(p => p.status !== 'inactive');
+
         // 1. Calcular comisiones base e ingresos
-        players.forEach(player => {
+        activePlayers.forEach(player => {
             if (player.paid && player.paymentDate >= startDate && player.paymentDate <= endDate) {
                 const price = calculatePrice(player);
-                const originalCoachId = player.coachId;
+                const originalCoachIds = player.coachId || [];
+                const numCoaches = originalCoachIds.length;
 
-                if (originalCoachId === 'Ambos') {
-                    coaches.slice(0, 2).forEach(coach => {
-                        const commission = price * (coach.commissionRate / 100) / 2;
-                        if (commissionDataCache[coach.id]) {
+                if (numCoaches > 0) {
+                    originalCoachIds.forEach(coachId => {
+                        const coach = coaches.find(c => c.id == coachId);
+                        if (coach && commissionDataCache[coach.id]) {
+                            // La comisión total se divide equitativamente
+                            const commission = (price * (coach.commissionRate / 100)) / numCoaches;
                             commissionDataCache[coach.id].baseCommission += commission;
                             commissionDataCache[coach.id].paidPackages.push({ playerName: player.name, amount: commission });
                         }
                     });
-                } else {
-                    const coach = coaches.find(c => c.id == originalCoachId);
-                    if (coach && commissionDataCache[coach.id]) {
-                        const commission = price * (coach.commissionRate / 100);
-                        commissionDataCache[coach.id].baseCommission += commission;
-                        commissionDataCache[coach.id].paidPackages.push({ playerName: player.name, amount: commission });
-                    }
                 }
             }
         });
 
         // 2. Calcular clases impartidas y ajustes por sustituciones
-        players.forEach(player => {
+        activePlayers.forEach(player => {
             const allAttendance = [...player.attendance, ...player.historicalAttendance];
             allAttendance.forEach(att => {
                 if (att.date >= startDate && att.date <= endDate) {
-                    const coachForClassId = att.overrideCoachId || player.coachId;
+                    const substituteCoachId = att.overrideCoachId;
+                    const originalCoachIds = player.coachId || [];
 
-                    // Contar clases
-                    if(att.status === 'presente'){
-                        if(coachForClassId === 'Ambos' && coaches.length >=2){
-                            if(commissionDataCache[coaches[0].id]) commissionDataCache[coaches[0].id].classesTaught += 0.5;
-                            if(commissionDataCache[coaches[1].id]) commissionDataCache[coaches[1].id].classesTaught += 0.5;
-                        } else if(commissionDataCache[coachForClassId]){
-                            commissionDataCache[coachForClassId].classesTaught++;
-                        }
+                    // Lógica para contar clases
+                    if (att.status === 'presente') {
+                        const coachesForClass = substituteCoachId ? [substituteCoachId] : originalCoachIds;
+                        coachesForClass.forEach(coachId => {
+                            const coachData = Object.values(commissionDataCache).find(data => data.id == coachId);
+                            if (coachData) {
+                                coachData.classesTaught += (1 / coachesForClass.length);
+                            }
+                        });
                     }
 
-                    // Calcular ajustes
-                    const isSubstitution = att.overrideCoachId && player.coachId != att.overrideCoachId;
+                    // Calcular ajustes por sustitución
+                    const isSubstitution = substituteCoachId && !originalCoachIds.includes(substituteCoachId);
                     const classIsEffective = att.status === 'presente' || (att.status === 'falta' && isAbsenceBillable(player, att));
 
-                    if (isSubstitution && classIsEffective) {
-                        const originalCoachId = player.coachId;
-                        const substituteCoachId = att.overrideCoachId;
-                        const valuePerClass = calculateCommissionPerClass(player);
-                        const originalCoach = coaches.find(c => c.id == originalCoachId);
+                    if (isSubstitution && classIsEffective && originalCoachIds.length > 0) {
                         const substituteCoach = coaches.find(c => c.id == substituteCoachId);
+                        if(substituteCoach && commissionDataCache[substituteCoachId]) {
+                            let totalCommissionValueToTransfer = 0;
+                            const originalCoaches = coaches.filter(c => originalCoachIds.includes(String(c.id)));
 
-                        if (originalCoachId !== 'Ambos' && originalCoach && substituteCoach && commissionDataCache[originalCoachId] && commissionDataCache[substituteCoachId]) {
-                            const commissionValue = valuePerClass * (originalCoach.commissionRate / 100);
-                            commissionDataCache[originalCoach.id].adjustments -= commissionValue;
-                            commissionDataCache[originalCoach.id].adjustmentDetails.push({ date: att.date, playerName: player.name, amount: -commissionValue, reason: `Cubierto por ${substituteCoach.name}` });
+                            originalCoaches.forEach(originalCoach => {
+                                if (commissionDataCache[originalCoach.id]) {
+                                    const valuePerClass = calculateCommissionPerClass(player);
+                                    // La comisión de cada coach original se divide entre el número de coaches originales
+                                    const commissionValue = (valuePerClass * (originalCoach.commissionRate / 100)) / originalCoaches.length;
+                                    totalCommissionValueToTransfer += commissionValue;
 
-                            commissionDataCache[substituteCoach.id].adjustments += commissionValue;
-                            commissionDataCache[substituteCoach.id].adjustmentDetails.push({ date: att.date, playerName: player.name, amount: commissionValue, reason: `Cubrió a ${originalCoach.name}` });
-                        }
-                        else if (originalCoachId === 'Ambos' && substituteCoach && coaches.length >=2) {
-                             const otherCoach = coaches.find(c => c.id != substituteCoach.id && commissionDataCache[c.id]);
-                            if(otherCoach) {
-                                const commissionValue = (valuePerClass * (otherCoach.commissionRate / 100)) / 2;
+                                    commissionDataCache[originalCoach.id].adjustments -= commissionValue;
+                                    commissionDataCache[originalCoach.id].adjustmentDetails.push({ date: att.date, playerName: player.name, amount: -commissionValue, reason: `Cubierto por ${substituteCoach.name}` });
+                                }
+                            });
 
-                                commissionDataCache[otherCoach.id].adjustments -= commissionValue;
-                                commissionDataCache[otherCoach.id].adjustmentDetails.push({ date: att.date, playerName: player.name, amount: -commissionValue, reason: `Clase 'Ambos' cubierta por ${substituteCoach.name}` });
-
-                                commissionDataCache[substituteCoach.id].adjustments += commissionValue;
-                                commissionDataCache[substituteCoach.id].adjustmentDetails.push({ date: att.date, playerName: player.name, amount: commissionValue, reason: `Cubrió parte de ${otherCoach.name}` });
-                            }
+                            commissionDataCache[substituteCoach.id].adjustments += totalCommissionValueToTransfer;
+                            commissionDataCache[substituteCoach.id].adjustmentDetails.push({ date: att.date, playerName: player.name, amount: totalCommissionValueToTransfer, reason: `Cubrió a ${originalCoaches.map(c => c.name).join(', ')}` });
                         }
                     }
                 }
@@ -553,7 +574,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // NUEVO: Función para manejar la exportación a JPG
     async function handleExportReport(coachId, fortnightKey) {
         const data = commissionDataCache[coachId];
         if (!data) {
@@ -608,7 +628,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 scale: 2, useCORS: true, backgroundColor: null,
                 onclone: (doc) => {
                     const logo = doc.querySelector('.report-header img');
-                    if(logo) logo.src = logo.src; // Re-set src to avoid CORS issues in some browsers
+                    if(logo) logo.src = logo.src;
                 }
             });
             const link = document.createElement('a');
@@ -626,9 +646,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- FUNCIONES DE RENDERIZADO Y LÓGICA PRINCIPAL (EXISTENTES)---
     const renderDashboard = () => {
-        totalPlayersStat.textContent = players.length;
+        const activePlayers = players.filter(p => p.status !== 'inactive');
+        totalPlayersStat.textContent = activePlayers.length;
         playersToRenewList.innerHTML = '';
-        const playersToRenew = players.filter(p => getRemainingClasses(p) <= 2);
+        const playersToRenew = activePlayers.filter(p => getRemainingClasses(p) <= 2);
         if (playersToRenew.length > 0) {
             playersToRenew.sort((a,b) => getRemainingClasses(a) - getRemainingClasses(b)).forEach(p => {
                 const li = document.createElement('li');
@@ -646,21 +667,18 @@ document.addEventListener('DOMContentLoaded', () => {
         let classesCount = {};
         coaches.forEach(c => { classesCount[c.name] = 0; });
 
-        players.forEach(player => {
+        activePlayers.forEach(player => {
             [...player.attendance, ...player.historicalAttendance].forEach(att => {
                 if (!att.date) return;
                 const attDate = new Date(att.date + 'T12:00:00Z');
                 if (att.status === 'presente' && attDate >= startQuincena && attDate <= endQuincena) {
-                    const coachId = att.overrideCoachId || player.coachId;
-                    if (coachId === 'Ambos' && coaches.length >= 2) {
-                        if(classesCount[coaches[0].name] !== undefined) classesCount[coaches[0].name] += 0.5;
-                        if(classesCount[coaches[1].name] !== undefined) classesCount[coaches[1].name] += 0.5;
-                    } else {
-                         const coach = coaches.find(c => c.id == coachId);
-                         if (coach && classesCount[coach.name] !== undefined) {
-                            classesCount[coach.name]++;
-                         }
-                    }
+                    const coachIds = att.overrideCoachId ? [att.overrideCoachId] : player.coachId;
+                    coachIds.forEach(coachId => {
+                        const coach = coaches.find(c => c.id == coachId);
+                        if (coach && classesCount[coach.name] !== undefined) {
+                            classesCount[coach.name] += (1 / coachIds.length); // Divide la clase entre los entrenadores
+                        }
+                    });
                 }
             });
         });
@@ -670,12 +688,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const renderPlayersList = () => {
         playerListContainer.innerHTML = '';
-        if (players.length === 0) {
+        const activePlayers = players.filter(p => p.status !== 'inactive');
+
+        if (activePlayers.length === 0) {
             playerListContainer.innerHTML = '<li>No hay jugadores registrados.</li>';
             return;
         }
 
-        players.sort((a, b) => a.name.localeCompare(b.name)).forEach(player => {
+        activePlayers.sort((a, b) => a.name.localeCompare(b.name)).forEach(player => {
             const li = document.createElement('li');
             let details = '';
             if (player.mainServiceType === 'academia') {
@@ -684,12 +704,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 details = `Clase Individual (${player.individualType === 'unica' ? 'Única' : 'Paquete 4'}) - ${player.numPeople} persona(s)`;
             }
 
-            let coachName = "No asignado";
-            if (player.coachId === 'Ambos') {
-                coachName = 'Ambos';
-            } else {
-                const coach = coaches.find(c => c.id == player.coachId);
-                if (coach) coachName = coach.name;
+            // MODIFICADO: Muestra múltiples nombres de entrenadores
+            let coachNames = "No asignado";
+            if (player.coachId && player.coachId.length > 0) {
+                coachNames = player.coachId.map(id => {
+                    const coach = coaches.find(c => String(c.id) === String(id));
+                    return coach ? coach.name : '';
+                }).filter(Boolean).join(', ');
             }
 
             const phoneInfo = player.phone ? ` | 📞 ${player.phone}` : '';
@@ -698,7 +719,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 <div class="player-info">
                     <strong>${player.name}</strong>
                     <span>${details}</span>
-                    <span>Horario: ${formatSchedule(player.schedule)} - Entrenador: ${coachName}${phoneInfo}</span>
+                    <span>Horario: ${formatSchedule(player.schedule)} - Entrenador(es): ${coachNames}${phoneInfo}</span>
                 </div>
                 <div class="player-actions admin-feature">
                     <button class="action-button-small secondary-action edit-btn" data-id="${player.id}">${ICONS.edit}</button>
@@ -710,12 +731,20 @@ document.addEventListener('DOMContentLoaded', () => {
         body.classList.toggle('locked', !isAdmin);
     };
 
+    // MODIFICADO: Lógica de renderizado de asistencia adaptada al calendario
     const renderAttendanceList = () => {
-        const selectedDay = daySelector.value;
-        const selectedDate = getDateForDayOfWeek(selectedDay);
+        const selectedDates = datePickerInstance.selectedDates;
+        if (!selectedDates || selectedDates.length === 0) {
+            attendanceListContainer.innerHTML = '<h3>Selecciona una fecha en el calendario.</h3>';
+            return;
+        }
+        const selectedDate = selectedDates[0];
         const selectedDateStr = selectedDate.toISOString().slice(0, 10);
+        const selectedDayOfWeek = String(selectedDate.getDay()); // Domingo: 0, Lunes: 1, etc.
 
-        const playersForDay = players.filter(p => (p.classDays || []).includes(selectedDay));
+        const activePlayers = players.filter(p => p.status !== 'inactive');
+        const playersForDay = activePlayers.filter(p => (p.classDays || []).includes(selectedDayOfWeek));
+
         attendanceListContainer.innerHTML = '';
 
         if (playersForDay.length === 0) {
@@ -737,12 +766,15 @@ document.addEventListener('DOMContentLoaded', () => {
             groupedBySchedule[schedule].sort((a,b) => a.name.localeCompare(b.name)).forEach(player => {
                 const attendanceRecord = player.attendance.find(a => a.date === selectedDateStr);
 
-                const coachForThisClassId = attendanceRecord?.overrideCoachId || player.coachId;
-                let coachName = "No asignado";
-                if (coachForThisClassId === 'Ambos') coachName = 'Ambos';
-                else {
-                    const coach = coaches.find(c => c.id == coachForThisClassId);
-                    if (coach) coachName = coach.name;
+                const coachForThisClassId = attendanceRecord?.overrideCoachId;
+                let coachNames = "No asignado";
+                const coachIdsToShow = coachForThisClassId ? [coachForThisClassId] : player.coachId;
+
+                if (coachIdsToShow && coachIdsToShow.length > 0) {
+                     coachNames = coachIdsToShow.map(id => {
+                        const coach = coaches.find(c => String(c.id) === String(id));
+                        return coach ? coach.name : '';
+                    }).filter(Boolean).join(', ');
                 }
 
                 const card = document.createElement('div');
@@ -751,7 +783,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 card.innerHTML = `
                     <div class="player-attendance-info">
                         <strong>${player.name}</strong>
-                        <span>Entrenador: ${coachName}</span>
+                        <span>Entrenador(es): ${coachNames}</span>
                     </div>
                     <div class="attendance-actions">
                         <button class="action-button-small present-btn ${attendanceRecord?.status === 'presente' ? 'active' : ''}" data-player-id="${player.id}" data-status="presente">Presente</button>
@@ -768,7 +800,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const renderSummaryTable = () => {
         summaryTableBody.innerHTML = '';
-        let filteredPlayers = [...players];
+        let filteredPlayers = players.filter(p => p.status !== 'inactive');
 
         const serviceType = serviceTypeFilter.value;
         if (serviceType !== 'todos') {
@@ -877,7 +909,7 @@ document.addEventListener('DOMContentLoaded', () => {
         playerForm.reset();
         document.getElementById('player-id').value = '';
         document.getElementById('modal-title').textContent = player ? 'Editar Jugador' : 'Registrar Nuevo Jugador';
-        populateCoachSelect(); 
+        populateCoachCheckboxes(); // Poblar checkboxes en lugar de select
         if (player) {
             document.getElementById('player-id').value = player.id;
             document.getElementById('player-name').value = player.name;
@@ -891,7 +923,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 document.getElementById('individual-type').value = player.individualType;
                 document.getElementById('num-people').value = player.numPeople;
             }
-            coachSelect.value = player.coachId;
+            // MODIFICADO: Marcar los checkboxes correspondientes
+            const coachCheckboxes = document.querySelectorAll('#coach-checkbox-container input[type="checkbox"]');
+            coachCheckboxes.forEach(cb => {
+                cb.checked = player.coachId.includes(cb.value);
+            });
             scheduleTimeSelect.value = player.schedule;
             document.querySelectorAll('input[name="class-day"]').forEach(cb => {
                 const classDays = Array.isArray(player.classDays) ? player.classDays : [];
@@ -901,6 +937,7 @@ document.addEventListener('DOMContentLoaded', () => {
         handleModalForm();
         playerModal.style.display = 'block';
     };
+
     const openEditSummaryModal = (player) => {
         document.getElementById('edit-summary-player-id').value = player.id;
         document.getElementById('edit-summary-title').textContent = `Editar Paquete de ${player.name}`;
@@ -920,7 +957,8 @@ document.addEventListener('DOMContentLoaded', () => {
     manageCoachesBtn.addEventListener('click', () => openCoachModal());
     closeCoachModalBtn.addEventListener('click', () => coachModal.style.display = 'none');
 
-    coachForm.addEventListener('submit', (e) => {
+    // MODIFICADO: Guardado de entrenador ahora recarga los datos
+    coachForm.addEventListener('submit', async (e) => {
         e.preventDefault();
         const id = document.getElementById('coach-id').value;
         const coachData = {
@@ -933,12 +971,15 @@ document.addEventListener('DOMContentLoaded', () => {
         } else {
             coaches.push({ ...coachData, id: Date.now() });
         }
-        saveData().then(renderCoachesList);
+        await saveData();
+        await loadData(false);
+        renderCoachesList(); // Se renderiza con los datos ya actualizados
         coachForm.reset();
         document.getElementById('coach-id').value = '';
     });
 
-    coachListContainer.addEventListener('click', (e) => {
+    // MODIFICADO: Eliminación de entrenador ahora recarga los datos
+    coachListContainer.addEventListener('click', async (e) => {
         const target = e.target.closest('button');
         if(!target) return;
         const id = target.dataset.id;
@@ -948,14 +989,18 @@ document.addEventListener('DOMContentLoaded', () => {
         if(target.classList.contains('delete-coach-btn')) {
             if(confirm('¿Seguro que quieres eliminar a este entrenador?')) {
                 coaches = coaches.filter(c => c.id != id);
-                saveData().then(renderCoachesList);
+                await saveData();
+                await loadData(false);
             }
         }
     });
 
-    playerForm.addEventListener('submit', (e) => {
+    // MODIFICADO: Guardado de jugador con selección múltiple de coach y recarga de datos
+    playerForm.addEventListener('submit', async (e) => {
         e.preventDefault();
         const id = document.getElementById('player-id').value;
+        const selectedCoaches = Array.from(document.querySelectorAll('#coach-checkbox-container input:checked')).map(cb => cb.value);
+
         const playerData = {
             name: document.getElementById('player-name').value,
             phone: document.getElementById('player-phone').value,
@@ -965,56 +1010,61 @@ document.addEventListener('DOMContentLoaded', () => {
             level: document.getElementById('player-level').value,
             individualType: document.getElementById('individual-type').value,
             numPeople: parseInt(document.getElementById('num-people').value),
-            coachId: coachSelect.value,
+            coachId: selectedCoaches, // Guardar array de IDs
             schedule: "'" + scheduleTimeSelect.value,
             classDays: Array.from(document.querySelectorAll('input[name="class-day"]:checked')).map(cb => cb.value),
+            status: 'active' // Asegurar que el estado es activo
         };
         if (id) {
             const playerIndex = players.findIndex(p => p.id == id);
             if (playerData.schedule.startsWith("''")) playerData.schedule = playerData.schedule.substring(1);
+            // Mantener el estado si ya existe (ej. 'inactive')
+            playerData.status = players[playerIndex].status || 'active';
             players[playerIndex] = { ...players[playerIndex], ...playerData };
         } else {
             players.push({ ...playerData, id: Date.now(), attendance: [], historicalAttendance: [], paid: false, paymentDate: null, manualClassAdjustment: 0 });
         }
-        saveData().then(refreshAllViews);
+        await saveData();
+        await loadData(false);
         playerModal.style.display = 'none';
     });
 
-    playerListContainer.addEventListener('click', (e) => {
+    // MODIFICADO: Botón de eliminar ahora desactiva al jugador
+    playerListContainer.addEventListener('click', async (e) => {
         if (!isAdmin) return;
         const target = e.target.closest('button');
         if (!target) return;
         const id = target.dataset.id;
+        const player = players.find(p => p.id == id);
         if (target.classList.contains('edit-btn')) {
-            openPlayerModal(players.find(p => p.id == id));
+            openPlayerModal(player);
         }
         if (target.classList.contains('delete-btn')) {
-            if (confirm('¿Estás seguro?')) {
-                players = players.filter(p => p.id != id);
-                saveData().then(refreshAllViews);
+            if (confirm(`¿Estás seguro que quieres desactivar a ${player.name}? El jugador se ocultará de las listas pero sus datos históricos se conservarán.`)) {
+                player.status = 'inactive';
+                await saveData();
+                await loadData(false);
             }
         }
     });
 
-    daySelector.addEventListener('change', renderAttendanceList);
-
-    attendanceListContainer.addEventListener('click', (e) => {
+    // MODIFICADO: Evento de asistencia ahora usa el calendario y recarga datos
+    attendanceListContainer.addEventListener('click', async (e) => {
         if (!isAdmin) return;
         const button = e.target.closest('button');
         if (!button) return;
 
         const playerId = button.dataset.playerId;
+        const player = players.find(p => p.id == playerId);
+        const selectedDateStr = datePickerInstance.selectedDates[0].toISOString().slice(0, 10);
 
         if (button.classList.contains('edit-class-coach-btn')) {
-            const classDate = button.dataset.classDate;
-            openChangeCoachModal(playerId, classDate);
+            openChangeCoachModal(playerId, selectedDateStr);
             return;
         }
 
         if (button.classList.contains('present-btn') || button.classList.contains('absent-btn')) {
             const newStatus = button.dataset.status;
-            const player = players.find(p => p.id == playerId);
-            const selectedDateStr = getDateForDayOfWeek(daySelector.value).toISOString().slice(0, 10);
             let attendanceRecord = player.attendance.find(a => a.date === selectedDateStr);
 
             if (attendanceRecord) {
@@ -1032,11 +1082,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 player.paymentDate = null;
             }
 
-            saveData().then(refreshAllViews);
+            await saveData();
+            await loadData(false); // Recarga inmediata para sincronización
         }
     });
 
-    summaryTableBody.addEventListener('click', (e) => {
+    // MODIFICADO: Eventos de la tabla de resumen ahora usan async/await y desactivan en lugar de borrar
+    summaryTableBody.addEventListener('click', async (e) => {
         if (!isAdmin) return;
         const target = e.target.closest('button');
         if (!target) return;
@@ -1047,24 +1099,26 @@ document.addEventListener('DOMContentLoaded', () => {
         if (target.classList.contains('payment-status-btn')) {
             player.paid = !player.paid;
             player.paymentDate = player.paid ? new Date().toISOString().slice(0, 10) : null;
-            saveData().then(refreshAllViews);
+            await saveData();
+            await loadData(false);
         } else if (target.classList.contains('edit-classes-btn')) {
             openEditSummaryModal(player);
         } else if (target.classList.contains('renew-package-btn')) {
             if (confirm(`¿Seguro que quieres renovar el paquete para ${player.name}? Se reiniciarán sus clases y faltas.`)) {
                 const remaining = getRemainingClasses(player);
-
                 player.attendance = []; 
                 player.historicalAttendance = [];
                 player.manualClassAdjustment = remaining > 0 ? remaining : 0; 
                 player.paid = true;
                 player.paymentDate = new Date().toISOString().slice(0, 10);
-                saveData().then(refreshAllViews);
+                await saveData();
+                await loadData(false);
             }
         } else if (target.classList.contains('delete-summary-btn')) {
-            if(confirm(`¿Seguro que quieres eliminar a ${player.name}?`)) {
-                players = players.filter(p => p.id != id);
-                saveData().then(refreshAllViews);
+            if(confirm(`¿Seguro que quieres DESACTIVAR a ${player.name}? Se ocultará de las listas pero sus datos históricos se conservarán.`)) {
+                player.status = 'inactive';
+                await saveData();
+                await loadData(false);
             }
         } else if (target.classList.contains('whatsapp-btn')) {
             const phone = target.dataset.phone;
@@ -1074,7 +1128,8 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    editSummaryForm.addEventListener('submit', (e) => {
+    // MODIFICADO: Formulario de edición de resumen ahora usa async/await
+    editSummaryForm.addEventListener('submit', async (e) => {
         e.preventDefault();
         const playerId = document.getElementById('edit-summary-player-id').value;
         const player = players.find(p => p.id == playerId);
@@ -1096,13 +1151,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 player.paymentDate = newDateStr;
                 player.paid = true;
             }
-            saveData().then(refreshAllViews);
+            await saveData();
+            await loadData(false);
             editSummaryModal.style.display = 'none';
         }
     });
 
     closeChangeCoachModalBtn.addEventListener('click', () => changeCoachModal.style.display = 'none');
-    changeCoachForm.addEventListener('submit', (e) => {
+    // MODIFICADO: Formulario de cambio de coach ahora usa async/await
+    changeCoachForm.addEventListener('submit', async (e) => {
         e.preventDefault();
         const playerId = document.getElementById('change-coach-player-id').value;
         const classDate = document.getElementById('change-coach-class-date').value;
@@ -1114,14 +1171,15 @@ document.addEventListener('DOMContentLoaded', () => {
         } else {
             attendanceRecord.overrideCoachId = newCoachId;
         }
-        saveData().then(renderAttendanceList);
+        await saveData();
+        await loadData(false);
         changeCoachModal.style.display = 'none';
     });
 
     // --- NUEVOS MANEJADORES DE EVENTOS PARA COMISIONES ---
     calculateCommissionsBtn.addEventListener('click', calculateAndRenderCommissions);
 
-    adjustmentForm.addEventListener('submit', e => {
+    adjustmentForm.addEventListener('submit', async e => {
         e.preventDefault();
         const coachId = parseInt(document.getElementById('adjustment-coach-id').value, 10);
         const fortnightKey = document.getElementById('adjustment-fortnight-key').value;
@@ -1138,12 +1196,14 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         adjustments = adjustments.filter(adj => !(adj.fortnightKey === fortnightKey && adj.coachId === coachId));
-        if (amount !== 0) { // Only add adjustment if it's not zero
+        if (amount !== 0) { 
             adjustments.push({ fortnightKey, coachId, amount, reason });
         }
 
         adjustmentModal.style.display = 'none';
-        saveData().then(calculateAndRenderCommissions);
+        await saveData();
+        await loadData(false);
+        calculateAndRenderCommissions();
     });
 
     commissionsResultsContainer.addEventListener('click', e => {
@@ -1176,17 +1236,29 @@ document.addEventListener('DOMContentLoaded', () => {
         for (let i = 8; i <= 23; i++) {
             scheduleTimeSelect.add(new Option(`${String(i).padStart(2, '0')}:00`, `${String(i).padStart(2, '0')}:00`));
         }
-        let todayDay = new Date().getDay();
-        daySelector.value = todayDay === 0 ? '0' : todayDay.toString();
+
+        // NUEVO: Inicialización del calendario
+        flatpickr.localize(flatpickr.l10ns.es);
+        datePickerInstance = flatpickr(datePickerInput, {
+            dateFormat: "Y-m-d",
+            defaultDate: "today",
+            onChange: function(selectedDates, dateStr, instance) {
+                renderAttendanceList();
+            }
+        });
 
         archiveOldAttendance();
-        populateDateFilters(); // MODIFICADO
+        populateDateFilters(); 
 
         renderCoachesList();
         document.querySelector('.nav-button[data-tab="inicio"]').click();
+
+        // MODIFICADO: Intervalo de recarga más frecuente
         setInterval(() => {
-            if (!isDataLoading) loadData(false);
-        }, 20000); 
+            if (!isDataLoading && !document.body.classList.contains('saving')) {
+                 loadData(false);
+            }
+        }, 10000); // Recargar cada 10 segundos
     };
 
     loadData(true);
