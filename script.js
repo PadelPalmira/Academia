@@ -172,7 +172,7 @@ document.addEventListener('DOMContentLoaded', () => {
             console.error("Error al guardar datos:", error);
             alert("Error al guardar los datos.");
         } finally {
-            setTimeout(() => body.classList.remove('saving'), 1500);
+            setTimeout(() => body.classList.remove('saving'), 500);
         }
     }
 
@@ -1186,7 +1186,7 @@ document.addEventListener('DOMContentLoaded', () => {
         document.querySelector('.nav-button[data-tab="inicio"]').click();
         setInterval(() => {
             if (!isDataLoading) loadData(false);
-        }, 20000); 
+        }, 10000); 
     };
 
     loadData(true);
