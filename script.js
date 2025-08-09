@@ -5,7 +5,7 @@
   El code.gs incluido en este proyecto crea endpoints para leer/escribir
   las pestañas: Jugadores, Asistencias, Coaches, Pagos.
 */
-const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwPlNfD6fZya3ZnavqbXw6-C6uw-IiU6Xc0gch9zGJ-n9Fg3VeSbkuyMRKiFeeMQRviGQ/exec'; // <- pega aquí la URL desplegada
+const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzarukL2epiKVQzVA2M9N8-Ecn6D_EIv_tUsymjPO3qrrLrfKa8fUOnSY7GoAQuBejMrw/exec'; // <- pega aquí la URL desplegada
 
 // --- helpers: peticiones al backend ---
 async function gsFetch(action, payload = {}){
