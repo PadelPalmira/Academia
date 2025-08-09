@@ -1,99 +1,175 @@
-<!doctype html>
 <html lang="es">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Gestor Padel — Padel Palmira</title>
-  <link rel="stylesheet" href="style.css" />
-  <link rel="icon" href="data:;base64,iVBORw0KGgo=">
+  <title>Padel Palmira — Gestión de Clases</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <!-- Usamos Inter como alternativa a SF Pro -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <header class="topbar">
-    <div class="brand">
-      <div class="logo">🏓</div>
-      <div>
-        <h1>Padel Palmira</h1>
-        <p class="muted">Gestor de academias y clases</p>
+  <div id="app" class="app-root">
+    <header class="topbar">
+      <h1>Padel Palmira — Gestión</h1>
+      <div class="top-actions">
+        <button id="btn-dashboard" class="pill">Dashboard</button>
+        <button id="btn-jugadores" class="pill">Jugadores</button>
+        <button id="btn-asistencia" class="pill">Asistencia</button>
+        <button id="btn-entrenadores" class="pill">Entrenadores</button>
       </div>
-    </div>
-    <nav>
-      <button id="btnDashboard" class="btn big primary">Dashboard</button>
-      <button id="btnPlayers" class="btn big">Jugadores</button>
-      <button id="btnAttendance" class="btn big">Asistencia</button>
-      <button id="btnCoaches" class="btn big">Entrenadores</button>
-    </nav>
-  </header>
+    </header>
 
-  <main id="app">
-    <!-- DASHBOARD -->
-    <section id="dashboard" class="page active">
-      <h2>Resumen (hoy)</h2>
-      <div class="card">
-        <h3>Clases programadas hoy</h3>
-        <ul id="todayClasses" class="list"></ul>
-      </div>
-
-      <div class="card">
+    <main class="container">
+      <!-- DASHBOARD -->
+      <section id="dashboard" class="panel">
+        <h2>Resumen del día</h2>
+        <div id="summary-cards" class="grid"></div>
+        <h3>Jugadores con pocas clases</h3>
+        <div id="low-classes-list"></div>
         <h3>Pagos pendientes</h3>
-        <ul id="pendingPayments" class="list"></ul>
-      </div>
+        <div id="pending-payments"></div>
+      </section>
 
-      <div class="card">
-        <h3>Jugadores con ≤ 2 clases restantes</h3>
-        <ul id="lowClasses" class="list"></ul>
-      </div>
-    </section>
-
-    <!-- JUGADORES -->
-    <section id="players" class="page">
-      <div class="page-header">
-        <h2>Jugadores</h2>
-        <div>
-          <button id="btnAddPlayer" class="btn big primary">Agregar jugador</button>
+      <!-- JUGADORES -->
+      <section id="jugadores" class="panel hidden">
+        <div class="panel-header">
+          <h2>Jugadores</h2>
+          <div>
+            <button id="nuevo-jugador" class="btn-primary">+ Nuevo jugador</button>
+            <button id="export-jugadores" class="btn-ghost">Exportar CSV</button>
+          </div>
         </div>
-      </div>
 
-      <div id="playersGroups" class="cards-grid"></div>
-    </section>
+        <div id="jugadores-list"></div>
 
-    <!-- ASISTENCIA -->
-    <section id="attendance" class="page">
-      <div class="page-header">
-        <h2>Asistencia</h2>
-        <input type="date" id="attendanceDate" class="input" />
-      </div>
+        <!-- Modal: nuevo/editar jugador -->
+        <div id="modal-jugador" class="modal hidden" role="dialog">
+          <form id="form-jugador" class="modal-content">
+            <h3 id="modal-jugador-title">Nuevo jugador</h3>
+            <label>Nombre<input name="nombre" required></label>
+            <label>Edad<input name="edad" type="number" min="1"></label>
+            <label>Teléfono (opcional)<input name="telefono"></label>
 
-      <div id="attendanceList" class="card">
-        <h3>Clases del día</h3>
-        <ul id="classesOfDay" class="list"></ul>
-      </div>
-    </section>
+            <label>Modalidad
+              <select name="modalidad" id="modalidad-select">
+                <option value="academia">Academia</option>
+                <option value="individual">Clase individual</option>
+              </select>
+            </label>
 
-    <!-- ENTRENADORES -->
-    <section id="coaches" class="page">
-      <div class="page-header">
-        <h2>Entrenadores</h2>
-        <div>
-          <button id="btnAddCoach" class="btn big primary">Agregar coach</button>
-          <button id="btnCalcCommissions" class="btn big">Calcular quincena</button>
+            <div id="academia-fields">
+              <label>Tipo de academia
+                <select name="tipo_academia">
+                  <option value="adultos">Adultos - $2200 (8 clases)</option>
+                  <option value="ninos">Niños - $1800 (8 clases)</option>
+                </select>
+              </label>
+
+              <label>Días (ej: Lunes,Miércoles)<input name="dias"></label>
+              <label>Horario<input name="horario" placeholder="Ej. 18:00"></label>
+              <label>Coaches (IDs separados por coma)<input name="coaches"></label>
+              <label>Fecha de pago<input name="fecha_pago" type="date"></label>
+              <label>Estado de pago
+                <select name="estado_pago">
+                  <option value="pendiente">Pendiente</option>
+                  <option value="pagado">Pagado</option>
+                </select>
+              </label>
+              <label>Clases restantes<input name="clases_restantes" type="number" value="8" min="0"></label>
+            </div>
+
+            <div id="individual-fields" class="hidden">
+              <label>Tipo
+                <select name="tipo_individual">
+                  <option value="suelta">Suelta</option>
+                  <option value="paquete">Paquete 4 clases</option>
+                </select>
+              </label>
+              <label>Numero de jugadores (1-4)<input name="num_jugadores" type="number" min="1" max="4" value="1"></label>
+              <label>Fecha de la clase (o inicio de paquete)<input name="fecha_individual" type="date"></label>
+              <label>Horario<input name="horario_individual" placeholder="Ej. 19:30"></label>
+              <label>Coaches (IDs separados por coma)<input name="coaches_individual"></label>
+              <label>Estado de pago
+                <select name="estado_pago_individual">
+                  <option value="pendiente">Pendiente</option>
+                  <option value="pagado">Pagado</option>
+                </select>
+              </label>
+              <label>Clases restantes<input name="clases_restantes_individual" type="number" value="1" min="0"></label>
+            </div>
+
+            <div class="modal-actions">
+              <button type="submit" class="btn-primary">Guardar</button>
+              <button type="button" id="cancel-jugador" class="btn-ghost">Cancelar</button>
+            </div>
+          </form>
         </div>
-      </div>
+      </section>
 
-      <div id="coachesList" class="cards-grid"></div>
-    </section>
-  </main>
+      <!-- ASISTENCIA -->
+      <section id="asistencia" class="panel hidden">
+        <div class="panel-header">
+          <h2>Asistencia</h2>
+          <div>
+            <input id="asistencia-date" type="date">
+            <button id="load-day" class="btn-ghost">Cargar día</button>
+          </div>
+        </div>
 
-  <!-- MODALES / FORMULARIOS -->
-  <div id="modal" class="modal hidden">
-    <div class="modal-inner card">
-      <button id="modalClose" class="btn icon">✕</button>
-      <div id="modalContent"></div>
-    </div>
+        <div id="calendar-day"></div>
+
+        <div id="day-classes"></div>
+      </section>
+
+      <!-- ENTRENADORES -->
+      <section id="entrenadores" class="panel hidden">
+        <div id="pin-screen">
+          <h3>Acceso Entrenadores</h3>
+          <p>Introduce PIN para continuar</p>
+          <input id="pin-input" type="password" maxlength="4" placeholder="####">
+          <div class="pin-actions">
+            <button id="pin-enter" class="btn-primary">Entrar</button>
+            <button id="pin-cancel" class="btn-ghost">Cancelar</button>
+          </div>
+        </div>
+
+        <div id="entrenadores-content" class="hidden">
+          <div class="panel-header">
+            <h2>Entrenadores</h2>
+            <div>
+              <button id="nuevo-coach" class="btn-primary">+ Nuevo entrenador</button>
+              <button id="export-coaches" class="btn-ghost">Exportar JPG quincenal</button>
+            </div>
+          </div>
+
+          <div id="coaches-list"></div>
+
+          <div id="coach-summary" class="hidden"></div>
+
+          <!-- Modal: nuevo entrenador -->
+          <div id="modal-coach" class="modal hidden">
+            <form id="form-coach" class="modal-content">
+              <h3>Nuevo entrenador</h3>
+              <label>Nombre<input name="coach_nombre" required></label>
+              <label>Teléfono<input name="coach_telefono"></label>
+              <label>Correo<input name="coach_correo" type="email"></label>
+              <div class="modal-actions">
+                <button class="btn-primary" type="submit">Guardar</button>
+                <button id="cancel-coach" class="btn-ghost" type="button">Cancelar</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </section>
+
+    </main>
+
+    <footer class="footer">
+      <small>Padel Palmira - App interna • PIN Entrenadores: 5858</small>
+    </footer>
   </div>
-
-  <footer class="footer">
-    <small>Diseño Apple-like • Colores: Miami Vice (rosa / azul pastel)</small>
-  </footer>
 
   <script src="script.js"></script>
 </body>
