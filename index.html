@@ -1,309 +1,100 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="es">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gestión de Academia de Pádel</title>
-    <link rel="stylesheet" href="style.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Gestor Padel — Padel Palmira</title>
+  <link rel="stylesheet" href="style.css" />
+  <link rel="icon" href="data:;base64,iVBORw0KGgo=">
 </head>
-<body class="locked"> <div class="app-container">
-        <header class="app-header">
-            <div class="header-content">
-                <img src="Images/PadelPalmira.PNG" alt="Logo Padel Palmira" class="app-logo" onerror="this.style.display='none'">
-                <h1>Gestión de Academia</h1>
-                <button id="admin-lock-btn" class="admin-lock-btn">
-                    <i class="fa-solid fa-lock"></i>
-                </button>
-            </div>
-            <nav class="main-nav">
-                <button class="nav-button active" data-tab="inicio">
-                    <i class="fa-solid fa-house"></i>
-                    <span class="nav-text">Inicio</span>
-                </button>
-                <button class="nav-button" data-tab="registro">
-                    <i class="fa-solid fa-user-plus"></i>
-                    <span class="nav-text">Jugadores</span>
-                </button>
-                <button class="nav-button" data-tab="asistencia">
-                    <i class="fa-solid fa-clipboard-user"></i>
-                    <span class="nav-text">Asistencia</span>
-                </button>
-                <button class="nav-button" data-tab="resumen">
-                    <i class="fa-solid fa-list-check"></i>
-                    <span class="nav-text">Resumen</span>
-                </button>
-                <button class="nav-button admin-feature" data-tab="entrenadores">
-                    <i class="fa-solid fa-chalkboard-user"></i>
-                    <span class="nav-text">Entrenadores</span>
-                </button>
-            </nav>
-        </header>
-
-        <main class="app-main">
-             <div id="inicio-tab" class="tab-content active">
-                <div class="content-card">
-                    <h2><i class="fa-solid fa-chart-line"></i> Dashboard Principal</h2>
-                    <div class="dashboard-grid">
-                        <div class="dashboard-card">
-                            <h3>Total de Jugadores</h3>
-                            <p id="total-players-stat">0</p>
-                        </div>
-                         <div class="dashboard-card">
-                            <h3>Clases dadas por Sergio (Quincena)</h3>
-                            <p id="sergio-classes-stat">0</p>
-                        </div>
-                        <div class="dashboard-card">
-                            <h3>Clases dadas por Luis (Quincena)</h3>
-                            <p id="luis-classes-stat">0</p>
-                        </div>
-                    </div>
-                </div>
-                <div class="content-card">
-                    <h3><i class="fa-solid fa-user-clock"></i> Jugadores por Renovar Paquete (2 o menos clases)</h3>
-                    <ul id="players-to-renew-list" class="dashboard-list"></ul>
-                </div>
-            </div>
-            
-            <div id="registro-tab" class="tab-content">
-                <div class="content-card">
-                    <div class="detail-header">
-                        <h2><i class="fa-solid fa-users"></i> Listado de Jugadores</h2>
-                        <button id="add-player-btn" class="action-button primary-action admin-feature">
-                            <i class="fa-solid fa-plus"></i> Registrar Jugador
-                        </button>
-                    </div>
-                    <ul id="player-list-container" class="player-list"></ul>
-                </div>
-            </div>
-
-            <div id="asistencia-tab" class="tab-content">
-                <div class="content-card">
-                    <h2><i class="fa-solid fa-calendar-day"></i> Seguimiento de Asistencias (Semana Actual)</h2>
-                    <div class="filters">
-                        <label for="day-selector">Selecciona un día:</label>
-                        <select id="day-selector" class="styled-select">
-                            <option value="1">Lunes</option>
-                            <option value="2">Martes</option>
-                            <option value="3">Miércoles</option>
-                            <option value="4">Jueves</option>
-                            <option value="5">Viernes</option>
-                            <option value="6">Sábado</option>
-                            <option value="0">Domingo</option>
-                        </select>
-                    </div>
-                    <div id="attendance-list-container"></div>
-                </div>
-            </div>
-
-            <div id="resumen-tab" class="tab-content">
-                <div class="content-card">
-                    <h2><i class="fa-solid fa-chart-pie"></i> Resumen de Clases y Pagos</h2>
-                     <div class="filters">
-                        <select id="service-type-filter" class="styled-select">
-                            <option value="todos">Todos los Servicios</option>
-                            <option value="academia">Academias</option>
-                            <option value="individual">Clases Individuales</option>
-                        </select>
-                        <select id="payment-filter" class="styled-select">
-                            <option value="todos">Todos los Pagos</option>
-                            <option value="pagado">Pagado</option>
-                            <option value="pendiente">Pendiente</option>
-                        </select>
-                        <button id="apply-summary-filters" class="action-button secondary-action">Filtrar</button>
-                    </div>
-                    <table class="styled-table" id="summary-table">
-                        <thead>
-                            <tr>
-                                <th>Jugador</th>
-                                <th>Detalle</th>
-                                <th>Estado del Pago</th>
-                                <th class="admin-feature" style="width: 240px;">Acciones</th>
-                            </tr>
-                        </thead>
-                        <tbody></tbody>
-                    </table>
-                </div>
-            </div>
-
-            <div id="entrenadores-tab" class="tab-content admin-feature">
-                <div class="content-card">
-                    <div class="detail-header">
-                        <h2><i class="fa-solid fa-file-invoice-dollar"></i> Comisiones de Entrenadores</h2>
-                        <button id="manage-coaches-btn" class="action-button primary-action"><i class="fa-solid fa-users-gear"></i> Gestionar</button>
-                    </div>
-                    <div class="filters date-filters">
-                        <label for="year-filter">Año:</label>
-                        <select id="year-filter" class="styled-select"></select>
-                        
-                        <label for="month-filter">Mes:</label>
-                        <select id="month-filter" class="styled-select"></select>
-                        
-                        <label for="fortnight-filter">Quincena:</label>
-                        <select id="fortnight-filter" class="styled-select">
-                            <option value="1">1ra Quincena (1-15)</option>
-                            <option value="2">2da Quincena (16-Fin)</option>
-                        </select>
-                        
-                        <button id="calculate-commissions-btn" class="action-button secondary-action">Calcular</button>
-                    </div>
-                    <div id="commissions-results-container"></div>
-                </div>
-            </div>
-        </main>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <div class="logo">🏓</div>
+      <div>
+        <h1>Padel Palmira</h1>
+        <p class="muted">Gestor de academias y clases</p>
+      </div>
     </div>
+    <nav>
+      <button id="btnDashboard" class="btn big primary">Dashboard</button>
+      <button id="btnPlayers" class="btn big">Jugadores</button>
+      <button id="btnAttendance" class="btn big">Asistencia</button>
+      <button id="btnCoaches" class="btn big">Entrenadores</button>
+    </nav>
+  </header>
 
-    <div id="player-modal" class="modal">
-        <div class="modal-content">
-            <span class="close-button">&times;</span>
-            <h3 id="modal-title">Registrar Nuevo Jugador</h3>
-            <form id="player-form">
-                <input type="hidden" id="player-id">
-                <div class="form-step" id="step-1">
-                    <label for="player-name">Nombre del Jugador:</label>
-                    <input type="text" id="player-name" class="styled-input" required>
-                    
-                    <label for="player-phone">Teléfono (WhatsApp, 10 dígitos):</label>
-                    <input type="tel" id="player-phone" class="styled-input" pattern="[0-9]{10}" placeholder="Ej: 5512345678">
+  <main id="app">
+    <!-- DASHBOARD -->
+    <section id="dashboard" class="page active">
+      <h2>Resumen (hoy)</h2>
+      <div class="card">
+        <h3>Clases programadas hoy</h3>
+        <ul id="todayClasses" class="list"></ul>
+      </div>
 
-                    <label for="main-service-type">Tipo de Servicio:</label>
-                    <select id="main-service-type" class="styled-select" required>
-                        <option value="" disabled selected>Selecciona una opción</option>
-                        <option value="academia">Academia</option>
-                        <option value="individual">Clase Individual</option>
-                    </select>
-                </div>
-                <div class="form-step hidden" id="step-academia-details">
-                    <label for="academy-type">Tipo de Academia:</label>
-                    <select id="academy-type" class="styled-select">
-                        <option value="ninos">Niños</option>
-                        <option value="adultos">Adultos</option>
-                    </select>
-                    <div id="age-field" class="hidden">
-                        <label for="player-age">Edad del Niño:</label>
-                        <input type="number" id="player-age" class="styled-input" min="4" max="18">
-                    </div>
-                    <div id="level-field" class="hidden">
-                        <label for="player-level">Nivel de Juego:</label>
-                        <select id="player-level" class="styled-select">
-                            <option value="nunca_ha_jugado">Nunca ha jugado</option>
-                            <option value="principiante">Principiante</option>
-                            <option value="intermedio">Intermedio</option>
-                            <option value="avanzado">Avanzado</option>
-                        </select>
-                    </div>
-                </div>
-                <div class="form-step hidden" id="step-individual-details">
-                    <label for="individual-type">Tipo de Clase Individual:</label>
-                    <select id="individual-type" class="styled-select">
-                        <option value="unica">Clase Única</option>
-                        <option value="paquete4">Paquete 4 Clases</option>
-                    </select>
-                    <label for="num-people">Número de Personas:</label>
-                    <input type="number" id="num-people" class="styled-input" min="1" max="4" value="1">
-                </div>
-                 <div class="form-step hidden" id="step-common-details">
-                    <label for="coach-select">Entrenador Asignado:</label>
-                    <select id="coach-select" class="styled-select" required></select>
-                    <label for="schedule-time">Horario de la Clase:</label>
-                    <select id="schedule-time" class="styled-select"></select>
-                    <label>Días de Clase:</label>
-                    <div class="days-checkbox-container">
-                        <label><input type="checkbox" name="class-day" value="1"> Lun</label>
-                        <label><input type="checkbox" name="class-day" value="2"> Mar</label>
-                        <label><input type="checkbox" name="class-day" value="3"> Mié</label>
-                        <label><input type="checkbox" name="class-day" value="4"> Jue</label>
-                        <label><input type="checkbox" name="class-day" value="5"> Vie</label>
-                        <label><input type="checkbox" name="class-day" value="6"> Sáb</label>
-                        <label><input type="checkbox" name="class-day" value="0"> Dom</label>
-                    </div>
-                 </div>
-                 <div id="price-summary" class="price-summary-card hidden">
-                     <h4>Resumen de Costo</h4>
-                     <p>Costo Total: <strong id="total-cost-display">$0.00 MXN</strong></p>
-                 </div>
-                <button type="submit" id="save-player-btn" class="action-button primary-action full-width-button">Guardar Jugador</button>
-            </form>
+      <div class="card">
+        <h3>Pagos pendientes</h3>
+        <ul id="pendingPayments" class="list"></ul>
+      </div>
+
+      <div class="card">
+        <h3>Jugadores con ≤ 2 clases restantes</h3>
+        <ul id="lowClasses" class="list"></ul>
+      </div>
+    </section>
+
+    <!-- JUGADORES -->
+    <section id="players" class="page">
+      <div class="page-header">
+        <h2>Jugadores</h2>
+        <div>
+          <button id="btnAddPlayer" class="btn big primary">Agregar jugador</button>
         </div>
+      </div>
+
+      <div id="playersGroups" class="cards-grid"></div>
+    </section>
+
+    <!-- ASISTENCIA -->
+    <section id="attendance" class="page">
+      <div class="page-header">
+        <h2>Asistencia</h2>
+        <input type="date" id="attendanceDate" class="input" />
+      </div>
+
+      <div id="attendanceList" class="card">
+        <h3>Clases del día</h3>
+        <ul id="classesOfDay" class="list"></ul>
+      </div>
+    </section>
+
+    <!-- ENTRENADORES -->
+    <section id="coaches" class="page">
+      <div class="page-header">
+        <h2>Entrenadores</h2>
+        <div>
+          <button id="btnAddCoach" class="btn big primary">Agregar coach</button>
+          <button id="btnCalcCommissions" class="btn big">Calcular quincena</button>
+        </div>
+      </div>
+
+      <div id="coachesList" class="cards-grid"></div>
+    </section>
+  </main>
+
+  <!-- MODALES / FORMULARIOS -->
+  <div id="modal" class="modal hidden">
+    <div class="modal-inner card">
+      <button id="modalClose" class="btn icon">✕</button>
+      <div id="modalContent"></div>
     </div>
-    
-    <div id="coach-modal" class="modal">
-        <div class="modal-content">
-            <span class="close-button">&times;</span>
-            <h3>Gestionar Entrenadores</h3>
-            <form id="coach-form">
-                <input type="hidden" id="coach-id">
-                <label for="coach-name">Nombre del Entrenador:</label>
-                <input type="text" id="coach-name" class="styled-input" required>
-                <label for="coach-commission">Tasa de Comisión (%):</label>
-                <input type="number" id="coach-commission" class="styled-input" required min="0" max="100" step="0.1">
-                <button type="submit" class="action-button primary-action full-width-button">Guardar Entrenador</button>
-            </form>
-            <hr class="modal-divider">
-            <h4>Lista de Entrenadores</h4>
-            <ul id="coach-list-container" class="coach-list"></ul>
-        </div>
-    </div>
-    
-    <div id="change-coach-modal" class="modal">
-        <div class="modal-content">
-            <span class="close-button">&times;</span>
-            <h3>Cambiar Entrenador de la Clase</h3>
-            <form id="change-coach-form">
-                <input type="hidden" id="change-coach-player-id">
-                <input type="hidden" id="change-coach-class-date">
-                <label for="coach-override-select">Selecciona el nuevo entrenador para esta clase:</label>
-                <select id="coach-override-select" class="styled-select" required></select>
-                <button type="submit" class="action-button primary-action full-width-button">Guardar Cambio</button>
-            </form>
-        </div>
-    </div>
+  </div>
 
-    <div id="edit-summary-modal" class="modal">
-        <div class="modal-content">
-            <span class="close-button">&times;</span>
-            <h3 id="edit-summary-title">Editar Paquete de Jugador</h3>
-            <form id="edit-summary-form">
-                <input type="hidden" id="edit-summary-player-id">
-                
-                <label for="edit-remaining-classes">Clases Restantes:</label>
-                <input type="number" id="edit-remaining-classes" class="styled-input" required min="0">
-                
-                <label for="edit-payment-date">Fecha de Pago del Paquete:</label>
-                <input type="date" id="edit-payment-date" class="styled-input" required>
-                
-                <button type="submit" class="action-button primary-action full-width-button">Guardar Cambios</button>
-            </form>
-        </div>
-    </div>
+  <footer class="footer">
+    <small>Diseño Apple-like • Colores: Miami Vice (rosa / azul pastel)</small>
+  </footer>
 
-    <div id="adjustment-modal" class="modal">
-        <div class="modal-content">
-            <span class="close-button">&times;</span>
-            <h3 id="adjustment-modal-title">Ajuste de Comisión</h3>
-            <form id="adjustment-form">
-                <input type="hidden" id="adjustment-coach-id">
-                <input type="hidden" id="adjustment-fortnight-key">
-                
-                <label for="adjustment-amount">Monto del Ajuste (MXN):</label>
-                <input type="number" id="adjustment-amount" class="styled-input" step="0.01" required placeholder="Ej: 500 o -150">
-                
-                <label for="adjustment-reason">Razón del Ajuste:</label>
-                <input type="text" id="adjustment-reason" class="styled-input" required placeholder="Ej: Bono de puntualidad">
-                
-                <button type="submit" class="action-button primary-action full-width-button">Guardar Ajuste</button>
-            </form>
-        </div>
-    </div>
-
-    <div id="report-template-wrapper">
-        </div>
-
-
-    <script src="script.js"></script>
+  <script src="script.js"></script>
 </body>
 </html>
